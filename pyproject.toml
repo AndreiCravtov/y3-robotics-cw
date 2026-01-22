@@ -1,0 +1,47 @@
+[project]
+name = "robotics"
+version = "0.1.0"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = []
+
+[dependency-groups]
+dev = []
+
+###
+# type-checker configuration
+###
+[tool.basedpyright]
+pythonVersion = "3.13"
+typeCheckingMode = "strict"
+failOnWarnings = true
+reportAny = "error"
+reportUnknownVariableType = "error"
+reportUnknownParameterType = "error"
+reportMissingParameterType = "error"
+reportMissingTypeStubs = "error"
+reportInvalidCast = "error"
+reportUnnecessaryCast = "error"
+reportUnnecessaryTypeIgnoreComment = "error"
+
+exclude = [
+    "**/.venv",
+    "**/venv",
+    "**/__pycache__",
+    "**/exo_scripts",
+    "**/.direnv",
+    "**/rust",
+]
+# stubPath = "typings"
+
+[[tool.basedpyright.executionEnvironments]]
+root = "src"
+
+[[tool.basedpyright.executionEnvironments]]
+root = "."
+
+###
+# ruff configuration
+###
+[tool.ruff.lint]
+extend-select = ["I", "N", "B", "A", "PIE", "SIM"]

@@ -1,0 +1,21 @@
+{
+  "nix.serverSettings": {
+    "nixd": {
+      "nixpkgs": {
+        "expr": "(builtins.getFlake \"path:${workspaceFolder}\").currentSystem.config._module.args.pkgs"
+      },
+      "options": {
+        "flake-parts": {
+          "expr": "(builtins.getFlake \"path:${workspaceFolder}\").debug.options"
+        },
+        "flake-parts-perSystem": {
+          "expr": "(builtins.getFlake \"path:${workspaceFolder}\").currentSystem.options"
+        },
+      }
+    }
+  },
+  "files.associations": {
+    "*.nix": "nix",
+    "justfile": "yaml"
+  }
+}
