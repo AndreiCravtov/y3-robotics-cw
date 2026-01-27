@@ -37,10 +37,15 @@ def calibrate_max_dps():
     for wheel in [left_wheel, right_wheel]:
         BP.set_motor_limits(wheel, power_limit)
         BP.set_motor_power(wheel, power_limit)
-        time.sleep(3) # To reach max speed
 
+    time.sleep(3) # To reach max speed
+
+    for wheel in [left_wheel, right_wheel]:
         BP.reset_motor_encoder(wheel)
-        time.sleep(0.5)
+
+    time.sleep(0.5)
+
+    for wheel in [left_wheel, right_wheel]:
         dps.append(abs(BP.get_motor_encoder(wheel)) * 2)
 
     max_dps = mean(dps)
@@ -127,16 +132,16 @@ def main():
 
     # Initial calibration
     calibrate_max_dps()
-    calibrate_radius_modifier()
-
-    # Block
-    block()
-
-    # Square 40
-    square(40.0)
-
-    # Block
-    block()
+    # calibrate_radius_modifier()
+    #
+    # # Block
+    # block()
+    #
+    # # Square 40
+    # square(40.0)
+    #
+    # # Block
+    # block()
 
 
 if __name__ == "__name__":
