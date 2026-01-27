@@ -34,7 +34,7 @@ exclude = [
     "**/.direnv",
     "**/rust",
 ]
-# stubPath = "typings"
+stubPath = "typings"
 
 [[tool.basedpyright.executionEnvironments]]
 root = "src"
