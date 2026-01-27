@@ -3,7 +3,9 @@ name = "robotics"
 version = "0.1.0"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "brickpi3 @ git+https://github.com/DexterInd/BrickPi3.git#subdirectory=Software/Python",
+]
 
 [dependency-groups]
 dev = []
