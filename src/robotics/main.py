@@ -2,21 +2,20 @@ import math
 import time
 from statistics import mean
 from typing import List
+
 import brickpi3
 
-from robotics.scripts.square import square
-from robotics.utils import forEach, WheelMovement, Rotation, allF
+from robotics.utils import Rotation, WheelMovement, allF, forEach
 
 BP = brickpi3.BrickPi3()
 
 # Change to fit wiring configuration on the robot
-left_wheel = BP.PORT_A
-right_wheel = BP.PORT_B
-both_wheels = [left_wheel, right_wheel]
+LEFT_WHEEL = BP.PORT_A
+RIGHT_WHEEL = BP.PORT_B
 
 # Other constants
-polling_interval = 0.2 # seconds
-power_limit = 70 # value between 0 to 100
+POLLING_INTERVAL = 0.2 # seconds
+POWER_LIMIT = 70 # value between 0 to 100
 
 # Units in cm unless stated otherwise
 wheel_radius = 3.0
@@ -34,18 +33,18 @@ def calibrate_max_dps():
     global max_dps
     dps = []
 
-    for wheel in [left_wheel, right_wheel]:
-        BP.set_motor_limits(wheel, power_limit)
-        BP.set_motor_power(wheel, power_limit)
+    for wheel in [LEFT_WHEEL, RIGHT_WHEEL]:
+        BP.set_motor_limits(wheel, POWER_LIMIT)
+        BP.set_motor_power(wheel, POWER_LIMIT)
 
     time.sleep(3) # To reach max speed
 
-    for wheel in [left_wheel, right_wheel]:
+    for wheel in [LEFT_WHEEL, RIGHT_WHEEL]:
         BP.reset_motor_encoder(wheel)
 
     time.sleep(0.5)
 
-    for wheel in [left_wheel, right_wheel]:
+    for wheel in [LEFT_WHEEL, RIGHT_WHEEL]:
         dps.append(abs(BP.get_motor_encoder(wheel)) * 2)
 
     max_dps = mean(dps)
@@ -96,7 +95,7 @@ def motorMovementHandler(movements: List[WheelMovement]):
     # Check every POLLING_INTERVAL the degrees moved by the motors, and subtract that from total degrees required to perform the action
     while not allF(movements, lambda mvmt : mvmt.is_complete()):
         forEach(movements, lambda mvmt : mvmt.reset_angle())
-        time.sleep(polling_interval)
+        time.sleep(POLLING_INTERVAL)
         forEach(movements, lambda mvmt : mvmt.update())
 
     end_time = time.time()
@@ -106,18 +105,18 @@ def motorMovementHandler(movements: List[WheelMovement]):
 
 def forward(distance: float):
     """
-    Commands the robot to move forward by this distance
+    Commands the robot to move forward by this distance in centimeters
     """
     return motorMovementHandler([
-        WheelMovement(left_wheel, distance = distance, speed = dps_to_speed()),
-        WheelMovement(right_wheel, distance = distance, speed = dps_to_speed()),
+        WheelMovement(LEFT_WHEEL, distance = distance, speed = dps_to_speed()),
+        WheelMovement(RIGHT_WHEEL, distance = distance, speed = dps_to_speed()),
     ])
 
 def turn(direction: Rotation, degrees: float, rotational_speed_modifier: float = 0.5):
     """
     Turns in the direction, by alpha degrees. The speed of the wheels during the rotation is rotational_speed_modifier * max_dps
     """
-    forward_wheel, backward_wheel = (left_wheel, right_wheel) if direction == Rotation.Clockwise else (right_wheel, left_wheel)
+    forward_wheel, backward_wheel = (LEFT_WHEEL, RIGHT_WHEEL) if direction == Rotation.Clockwise else (LEFT_WHEEL, RIGHT_WHEEL)
     distance = wheel_separation * rad(degrees)
     motorMovementHandler([
         WheelMovement(forward_wheel, distance = distance, speed = dps_to_speed(reduction_factor=0.5)),
