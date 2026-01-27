@@ -4,6 +4,7 @@ from statistics import mean
 from typing import List
 import brickpi3
 
+from robotics.scripts.square import square
 from robotics.utils import forEach, WheelMovement, Rotation, allF
 
 BP = brickpi3.BrickPi3()
@@ -25,9 +26,6 @@ wheel_separation = 16.0
 # Please calibrate these before using them using the appropriate calibration functions
 max_dps = 150.0 # maximum degrees per second
 radius_modifier = 1.0 # represents the multiplier between motor rotation and distance moved
-
-def main():
-    print("Hello Pi!")
 
 def calibrate_max_dps():
     """
@@ -54,11 +52,10 @@ def calibrate_radius_modifier(meters: float = 1.0):
     """
     global radius_modifier
     distance = meters * 100.0
-    ahead(list(map(lambda w : WheelMovement(w, distance = distance, speed = max_dps * actual_radius()), both_wheels)))
-    actual_distance = float(input("What is the actual distance traveled? "))
-    radius_modifier = distance / actual_distance
-
-
+    motorMovementHandler(list(map(lambda w : WheelMovement(w, distance = distance, speed =max_dps * actual_radius()), both_wheels)))
+    actual_distance = float(input("What is the actual distance traveled (cm)? "))
+    radius_modifier = actual_distance / distance
+    print(f"Actual wheel radius: {actual_radius()}")
 
 def abs(angle: float) -> float:
     """
@@ -72,10 +69,16 @@ def angle(rad: float) -> float:
 def rad(angle: float) -> float:
     return math.radians(angle)
 
+def dps_to_speed(dps: float = max_dps, reduction_factor: float = 0.7) -> float:
+    """
+    Converts desired dps to speed in cm/s. By default returns 0.7 * max_dps speed
+    """
+    return dps * actual_radius() * reduction_factor
+
 def actual_radius() -> float:
     return wheel_radius * radius_modifier
 
-def ahead(movements: List[WheelMovement]):
+def motorMovementHandler(movements: List[WheelMovement]):
     """
     Moves the wheels ahead by distance centimeters. Does not assume the calibration has been completed yet. Assumes
     vehicle is evenly distributed
@@ -96,16 +99,44 @@ def ahead(movements: List[WheelMovement]):
 
     print(f"Elapsed time: {elapsed_time}")
 
-def turn(direction: Rotation, alpha: float, rotational_speed_modifier: float = 0.5):
+def forward(distance: float):
+    """
+    Commands the robot to move forward by this distance
+    """
+    return motorMovementHandler([
+        WheelMovement(left_wheel, distance = distance, speed = dps_to_speed()),
+        WheelMovement(right_wheel, distance = distance, speed = dps_to_speed()),
+    ])
+
+def turn(direction: Rotation, degrees: float, rotational_speed_modifier: float = 0.5):
     """
     Turns in the direction, by alpha degrees. The speed of the wheels during the rotation is rotational_speed_modifier * max_dps
     """
     forward_wheel, backward_wheel = (left_wheel, right_wheel) if direction == Rotation.Clockwise else (right_wheel, left_wheel)
-    distance = wheel_separation * rad(alpha)
-    ahead([
-        WheelMovement(forward_wheel, distance = distance, speed = max_dps * actual_radius() * 0.5),
-        WheelMovement(backward_wheel, distance = -distance, speed = max_dps * actual_radius() * 0.5)
+    distance = wheel_separation * rad(degrees)
+    motorMovementHandler([
+        WheelMovement(forward_wheel, distance = distance, speed = dps_to_speed(reduction_factor=0.5)),
+        WheelMovement(backward_wheel, distance = -distance, speed = dps_to_speed(reduction_factor=0.5))
     ])
+
+def block():
+    input("Please reset robot and press enter to start experiment")
+
+def main():
+    print("Hello Pi!")
+
+    # Initial calibration
+    calibrate_max_dps()
+    calibrate_radius_modifier()
+
+    # Block
+    block()
+
+    # Square 40
+    square(40.0)
+
+    # Block
+    block()
 
 
 if __name__ == "__name__":
