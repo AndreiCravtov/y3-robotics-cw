@@ -26,6 +26,22 @@ max_dps = 150.0  # maximum degrees per second
 # represents the multiplier between motor rotation and distance moved
 radius_modifier = 1.0
 
+# MCL Constants 
+NUMBER_OF_PARTICLES = 100
+
+class Particle:
+    def __init__(self, x: float, y: float, theta: float, weight: float):
+        self.x = x
+        self.y = y
+        self.theta = theta
+        self.weight = weight
+
+particles = [Particle(42, 42, 0, 1 / NUMBER_OF_PARTICLES) for _ in range(100)]
+
+def draw_particles():
+    for particle in particles:
+        print("drawParticles:" + f"({particle.x}, {particle.y}, {particle.theta})")
+
 T = TypeVar('T')
 def allF(iterable: Iterable[T], condition: Callable[[T], bool]) -> bool:
     return all(map(condition, iterable))
@@ -183,6 +199,13 @@ def turn(direction: Rotation, degrees: float, rotational_speed_modifier: float =
 def block():
     input("Please reset robot and press enter to start experiment")
 
+def MCL():
+    for _ in range(4):
+        for _ in range(4):
+            forward(10.0)
+            time.sleep(0.5)
+        turn(Rotation.Counterclockwise, degrees= 90.0)
+        time.sleep(0.5)
 
 print("Hello Pi!")
 
@@ -194,9 +217,12 @@ calibrate_radius_modifier()
 block()
 
 # Square of 40cm
-for x in range(4):
-    forward(40.0)
-    turn(Rotation.Counterclockwise, degrees= 90.0)
+# for x in range(4):
+#     forward(40.0)
+#     turn(Rotation.Counterclockwise, degrees= 90.0)
 
 # Block
 block()
+
+if __name__ == "__main__":
+    MCL()
