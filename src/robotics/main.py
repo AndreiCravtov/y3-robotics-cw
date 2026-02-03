@@ -36,7 +36,7 @@ class Particle:
         self.theta = theta
         self.weight = weight
 
-particles = [Particle(42, 42, 0, 1 / NUMBER_OF_PARTICLES) for _ in range(100)]
+particles = [Particle(0, 0, 0, 1 / NUMBER_OF_PARTICLES) for _ in range(100)]
 
 def draw_particles():
     for particle in particles:
