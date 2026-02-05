@@ -53,6 +53,21 @@ def forEach(iterable: Iterable[T], func: Callable[[T], Any]) -> None:
     for i in iterable:
         func(i)
 
+def normalise(angle: float) -> float:
+    """
+    Converts BP's angle [-180, 180] to [0, 360]
+    """
+    return angle + 180.0
+
+def angle(rad: float) -> float:
+    return rad * math.pi / 180.0
+
+def rad(angle: float) -> float:
+    return math.radians(angle)
+
+def actual_radius() -> float:
+    return WHEEL_RADIUS * RADIUS_MODIFIER
+
 class Rotation(Enum):
     Clockwise = 1
     Counterclockwise = 2
@@ -133,30 +148,11 @@ def calibrate_RADIUS_MODIFIER(meters: float = 1.0):
     print(f"Actual wheel radius: {actual_radius()}")
 
 
-def normalise(angle: float) -> float:
-    """
-    Converts BP's angle [-180, 180] to [0, 360]
-    """
-    return angle + 180.0
-
-
-def angle(rad: float) -> float:
-    return rad * math.pi / 180.0
-
-
-def rad(angle: float) -> float:
-    return math.radians(angle)
-
-
 def dps_to_speed(dps: float = MAX_DPS, reduction_factor: float = 0.7) -> float:
     """
     Converts desired dps to speed in cm/s. By default returns 0.7 * max_dps speed
     """
     return dps * actual_radius() * reduction_factor
-
-
-def actual_radius() -> float:
-    return WHEEL_RADIUS * radius_modifier
 
 
 def motorMovementHandler(movements: List[WheelMovement]):
