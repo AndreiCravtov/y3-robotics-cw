@@ -1,5 +1,6 @@
 import math
 import time
+import random 
 from enum import Enum
 from statistics import mean
 from typing import List, Iterable, Callable, Any, TypeVar
@@ -29,6 +30,10 @@ RADIUS_MODIFIER = 0.98  # represents the multiplier between actual radius and me
 
 # MCL Constants
 NUMBER_OF_PARTICLES = 100
+# Variance of e,f,g for
+e = 0.5
+f = 0.5 
+g = 0.5 
 
 class Particle:
     def __init__(self, x: float, y: float, theta: float, weight: float):
@@ -36,6 +41,16 @@ class Particle:
         self.y = y
         self.theta = theta
         self.weight = weight
+    
+    def move_forward(self, distance: float): 
+        var = random.gauss(0, sigma=e)
+        self.x += math.cos(self.theta) * (distance + var)
+        self.y += math.sin(self.theta) * (distance + var)
+        self.theta += random.gauss(0, sigma=f)
+    
+    def turn(self, angle: float): 
+        var = random.gauss(0, sigma=g)
+        self.theta += angle + var
 
 particles = [Particle(0, 0, 0, 1 / NUMBER_OF_PARTICLES) for _ in range(100)]
 
@@ -184,6 +199,10 @@ def forward(distance: float):
     Commands the robot to move forward by this distance in centimeters
     """
     distance = distance * (40 / 39.3)
+
+    for particle in particles:
+        particle.move_forward(distance)
+
     return motorMovementHandler([
         WheelMovement(LEFT_WHEEL, distance=distance, speed=dps_to_speed(reduction_factor=0.53)),
         WheelMovement(RIGHT_WHEEL, distance=distance, speed=dps_to_speed(reduction_factor=0.5)),
@@ -198,6 +217,9 @@ def turn(direction: Rotation, degrees: float):
                                                                                                        LEFT_WHEEL)
     distance = WHEEL_SEPARATION * rad(degrees) / 2
     anglesForMovement = angle(distance / (2 * actual_radius()))
+
+    for particle in particles:
+        particle.turn(anglesForMovement)
 
     BP.set_motor_position(forward_wheel, anglesForMovement)
     BP.set_motor_position(backward_wheel, -anglesForMovement)
@@ -242,8 +264,10 @@ def MCL():
     for _ in range(4):
         for _ in range(4):
             forward(10.0)
+            draw_particles()
             time.sleep(0.5)
         turn(Rotation.Counterclockwise, degrees= 90.0)
+        draw_particles()
         time.sleep(0.5)
 
 print("Hello Pi!")
