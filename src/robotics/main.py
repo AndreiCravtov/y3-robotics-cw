@@ -34,9 +34,9 @@ RADIUS_MODIFIER = (
 # MCL Constants
 NUMBER_OF_PARTICLES = 100
 # Variance of e,f,g for
-e = 0.5
-f = 0.5
-g = 0.5
+e = 5.0
+f = 1.0
+g = 0.7
 
 
 class Particle:
@@ -77,7 +77,7 @@ def normalise(angle: float) -> float:
 
 
 def angle(rad: float) -> float:
-    return rad * math.pi / 180.0
+    return math.degrees(rad)
 
 
 def rad(angle: float) -> float:
@@ -93,10 +93,8 @@ class Rotation(Enum):
     Counterclockwise = 2
 
 
-class WheelMovement:
-    def __init__(
-        self, wheel, distance: float, speed: float = rad(MAX_DPS) * actual_radius()
-    ):
+class WheelMovement():
+    def __init__(self, wheel, distance: float, speed: float = rad(MAX_DPS) * actual_radius()):
         """
         Initializes a movement command to the specified wheel
         :param wheel: The wheel to move
@@ -127,9 +125,7 @@ class WheelMovement:
         BP.set_motor_dps(self.wheel, self.dps)
 
     def is_complete(self):
-        return (
-            self.remaining_degrees < 0 if self.forward else self.remaining_degrees > 0
-        )
+        return self.remaining_degrees < 0 if self.forward else self.remaining_degrees > 0
 
 
 def calibrate_MAX_DPS():
@@ -178,7 +174,7 @@ def dps_to_speed(dps: float = MAX_DPS, reduction_factor: float = 0.7) -> float:
     """
     Converts desired dps to speed in cm/s. By default returns 0.7 * max_dps speed
     """
-    return dps * actual_radius() * reduction_factor
+    return rad(dps) * actual_radius() * reduction_factor
 
 
 def motorMovementHandler(movements: List[WheelMovement]):
@@ -223,8 +219,8 @@ class Robot:
         BP.set_motor_limits(LEFT_WHEEL, LEFT_POWER_LIMIT, 250)
         BP.set_motor_limits(RIGHT_WHEEL, RIGHT_POWER_LIMIT, 250)
 
-        BP.set_motor_position_kp(LEFT_WHEEL, 25)
-        BP.set_motor_position_kp(RIGHT_WHEEL, 25)
+        BP.set_motor_position_kp(LEFT_WHEEL, 55)
+        BP.set_motor_position_kp(RIGHT_WHEEL, 55)
 
         self.particles = [
             Particle(0, 0, 0, 1 / NUMBER_OF_PARTICLES) for _ in range(100)
@@ -325,6 +321,10 @@ def MCL():
         robot.draw_particles()
         time.sleep(0.5)
 
+def waypointTest():
+    robot = Robot()
+    robot.navigate_to_waypoint(30, 30)
+
 
 print("Hello Pi!")
 
@@ -345,6 +345,21 @@ print("Hello Pi!")
 
 if __name__ == "__main__":
     MCL()
+    # motorMovementHandler(
+    #         [
+    #             WheelMovement(
+    #                 LEFT_WHEEL,
+    #                 distance=10.0,
+    #                 speed=dps_to_speed(reduction_factor=0.53),
+    #             ),
+    #             WheelMovement(
+    #                 RIGHT_WHEEL,
+    #                 distance=10.0,
+    #                 speed=dps_to_speed(reduction_factor=0.5),
+    #             ),
+    #         ]
+    #     )
+    # waypointTest()
 
 # Block
 # block()
