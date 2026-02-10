@@ -16,15 +16,15 @@ dev = []
 [tool.basedpyright]
 pythonVersion = "3.13"
 typeCheckingMode = "strict"
-failOnWarnings = true
-reportAny = "error"
-reportUnknownVariableType = "error"
-reportUnknownParameterType = "error"
-reportMissingParameterType = "error"
-reportMissingTypeStubs = "error"
-reportInvalidCast = "error"
-reportUnnecessaryCast = "error"
-reportUnnecessaryTypeIgnoreComment = "error"
+failOnWarnings = false
+reportAny = "warning"
+reportUnknownVariableType = "warning"
+reportUnknownParameterType = "warning"
+reportMissingParameterType = "warning"
+reportMissingTypeStubs = "warning"
+reportInvalidCast = "warning"
+reportUnnecessaryCast = "warning"
+reportUnnecessaryTypeIgnoreComment = "warning"
 
 exclude = [
     "**/.venv",

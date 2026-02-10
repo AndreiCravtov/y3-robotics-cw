@@ -15,7 +15,7 @@ fmt:
 # Sync files with remote on PI
 [group('Main')]
 watch-rsync IP USER=env('RSYNC_USER'):
-  watch -n 1 'rsync -az --delete --filter=":- .gitignore" --password-file="./.rsync_passwd" ./ pi@{{IP}}::prac-files/y3-robotics-cw-{{USER}}/'
+  chmod 600 ./.rsync_passwd && watch -n 1 'rsync -az --delete --filter=":- .gitignore" --password-file="./.rsync_passwd" ./ pi@{{IP}}::prac-files/y3-robotics-cw-{{USER}}/'
 
 # Update nix flake
 [group('Nix')]
