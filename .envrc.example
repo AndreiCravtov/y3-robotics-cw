@@ -1,8 +1,10 @@
 # TODO:
 # 
 # 1) Uncomment Nix flakes-related if you have Nix
-# 2) Fill in missing ENV vars
-# 3) Delete this comment :)
+# 2) Uncomment the `layout python` line & swap `python` to whatever is on your machine;
+#    (it should just be `python` but sometimes its `python3` etc.)
+# 3) Fill in missing ENV vars
+# 4) Delete this comment :)
 
 # # Nix flakes-based dev environment (see https://github.com/nix-community/nix-direnv)
 # # IMPORTANT: must come before others
@@ -11,7 +13,7 @@
 # Create (if doesn't exist) and use UV-managed .venv
 export VIRTUAL_ENV=".venv"
 uv sync
-layout python
+#layout python (or change to `layout python3` or something if needed)
 
 # Rest of the configuration
 export RSYNC_USER={{IMPERIAL SHORTCODE}}
