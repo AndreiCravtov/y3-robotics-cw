@@ -104,7 +104,8 @@ class WheelMovement():
         self.wheel = wheel
         self.remaining_degrees = angle(distance / (2 * actual_radius()))
         self.forward = distance > 0
-        self.dps = (speed / actual_radius()) * 360.0 * (1 if self.forward else -1)
+        self.dps = (speed / actual_radius()) * \
+            360.0 * (1 if self.forward else -1)
         self.reset_angle()
 
     def reset_angle(self):
@@ -153,7 +154,8 @@ def calibrate_MAX_DPS():
         BP.set_motor_power(wheel, 0)
 
     MAX_DPS = mean(dps)
-    print(f"Calibration for max degrees per second complete\nMax dps = {MAX_DPS}")
+    print(
+        f"Calibration for max degrees per second complete\nMax dps = {MAX_DPS}")
 
 
 def calibrate_RADIUS_MODIFIER(meters: float = 1.0):
@@ -165,7 +167,8 @@ def calibrate_RADIUS_MODIFIER(meters: float = 1.0):
     motorMovementHandler(
         list(map(lambda w: WheelMovement(w, distance=distance), BOTH_WHEELS))
     )
-    actual_distance = float(input("What is the actual distance traveled (cm)? "))
+    actual_distance = float(
+        input("What is the actual distance traveled (cm)? "))
     RADIUS_MODIFIER = actual_distance / distance
     print(f"Actual wheel radius: {actual_radius()}")
 
@@ -237,7 +240,8 @@ class Robot:
 
     def draw_particles(self):
         for particle in self.particles:
-            print("drawParticles:" + f"({particle.x}, {particle.y}, {particle.theta})")
+            print("drawParticles:" +
+                  f"({particle.x}, {particle.y}, {particle.theta})")
 
     def forward(self, distance: float):
         """
@@ -296,7 +300,7 @@ class Robot:
         current_x, current_y, current_theta = self.get_current_position()
         target_angle = math.atan2(y - current_y, x - current_x)
         angle_to_turn = target_angle - current_theta
-        
+
         self.turn(
             Rotation.Counterclockwise if angle_to_turn > 0 else Rotation.Clockwise,
             degrees=abs(rad(angle_to_turn)),
@@ -321,29 +325,30 @@ def MCL():
         robot.draw_particles()
         time.sleep(0.5)
 
+
 def waypointTest():
     robot = Robot()
     robot.navigate_to_waypoint(30, 30)
 
 
-print("Hello Pi!")
+def main():
+    print("Hello Pi!")
 
-# turn(Rotation.Clockwise, degrees = 45.0)
-# Initial calibration
-# calibrate_max_dps()
-# calibrate_radius_modifier()
+    # turn(Rotation.Clockwise, degrees = 45.0)
+    # Initial calibration
+    # calibrate_max_dps()
+    # calibrate_radius_modifier()
 
-# Block
-# block()
+    # Block
+    # block()
 
-# Square of 40cm
-# for x in range(4):
-#     forward(-40.0)
-#     stop()
-#     turn(Rotation.Clockwise, degrees=90.0)
-#     stop()
+    # Square of 40cm
+    # for x in range(4):
+    #     forward(-40.0)
+    #     stop()
+    #     turn(Rotation.Clockwise, degrees=90.0)
+    #     stop()
 
-if __name__ == "__main__":
     MCL()
     # motorMovementHandler(
     #         [
@@ -361,5 +366,5 @@ if __name__ == "__main__":
     #     )
     # waypointTest()
 
-# Block
-# block()
+    # Block
+    # block()
