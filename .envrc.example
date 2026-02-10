@@ -1,15 +1,17 @@
 # TODO:
 # 
-# 1) Uncomment either Python-only or Nix-based approach
+# 1) Uncomment Nix flakes-related if you have Nix
 # 2) Fill in missing ENV vars
 # 3) Delete this comment :)
 
-# # Python-only dev environment
-# export VIRTUAL_ENV=".venv"
-# layout python
-
 # # Nix flakes-based dev environment (see https://github.com/nix-community/nix-direnv)
+# # IMPORTANT: must come before others
 # use flake
+
+# Create (if doesn't exist) and use UV-managed .venv
+export VIRTUAL_ENV=".venv"
+uv sync
+layout python
 
 # Rest of the configuration
 export RSYNC_USER={{IMPERIAL SHORTCODE}}
