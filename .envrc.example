@@ -1,0 +1,15 @@
+# TODO:
+# 
+# 1) Uncomment either Python-only or Nix-based approach
+# 2) Fill in missing ENV vars
+# 3) Delete this comment :)
+
+# # Python-only dev environment
+# export VIRTUAL_ENV=".venv"
+# layout python
+
+# # Nix flakes-based dev environment (see https://github.com/nix-community/nix-direnv)
+# use flake
+
+# Rest of the configuration
+export RSYNC_USER={{IMPERIAL SHORTCODE}}

@@ -1,6 +1,11 @@
 {
+  "nix.enableLanguageServer": true,
+  "nix.serverPath": "nixd",
   "nix.serverSettings": {
     "nixd": {
+      "formatting": {
+        "command": ["alejandra"]
+      },
       "nixpkgs": {
         "expr": "(builtins.getFlake \"path:${workspaceFolder}\").currentSystem.config._module.args.pkgs"
       },
@@ -10,9 +15,12 @@
         },
         "flake-parts-perSystem": {
           "expr": "(builtins.getFlake \"path:${workspaceFolder}\").currentSystem.options"
-        },
+        }
       }
     }
+  },
+  "[nix]": {
+    "editor.defaultFormatter": "jnoortheen.nix-ide"
   },
   "files.associations": {
     "*.nix": "nix",

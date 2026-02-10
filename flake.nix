@@ -30,7 +30,23 @@
           lib,
           system,
           ...
-        }: {
+        }: let
+          pythonPkg = pkgs.python313;
+          nixFormatter = pkgs.alejandra;
+
+          nixRelatedPackages = with pkgs; [
+            nixd
+            nixFormatter
+          ];
+          pythonRelatedPkgs = with pkgs; [
+            pythonPkg
+            uv
+            ruff
+
+            basedpyright
+            nodejs # needed for jupyter
+          ];
+        in {
           # "Flake parts does not yet come with an endorsed module that initializes the pkgs argument."
           # So we must do this manually; https://flake.parts/overlays#consuming-an-overlay
           _module.args.pkgs = import inputs.nixpkgs {
@@ -43,27 +59,27 @@
             #overlays = ADD OVERLAYS HERE;
           };
 
-          formatter = pkgs.alejandra; # For 'nix fmt'
+          formatter = nixFormatter; # For 'nix fmt'
 
           make-shells.default = {
             name = "jupyter-notebook-shell";
-            packages = with pkgs; [
-              git
-              just
-              nixd
-              python313
-              uv
-              ruff
-              basedpyright
-              nodejs
-            ];
+            packages =
+              nixRelatedPackages
+              ++ pythonRelatedPkgs
+              ++ (with pkgs; [
+                # Random extra packages
+                git
+                just
+                watch
+                rsync
+              ]);
 
             # Arguments which are intended to be environment variables in the shell environment
             # should be changed to attributes of the `env` option
             env = {
               LD_LIBRARY_PATH = lib.makeLibraryPath (with pkgs; [
                 stdenv.cc.cc
-                python313
+                pythonPkg
               ]);
             };
           };
