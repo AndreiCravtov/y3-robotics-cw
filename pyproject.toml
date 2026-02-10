@@ -4,11 +4,15 @@ version = "0.1.0"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "spidev",
     "brickpi3 @ git+https://github.com/DexterInd/BrickPi3.git#subdirectory=Software/Python",
 ]
 
 [dependency-groups]
 dev = []
+
+[tool.uv.sources]
+spidev = { path = "vendor/spidev_shim", marker = "sys_platform == 'darwin'" }
 
 ###
 # type-checker configuration
