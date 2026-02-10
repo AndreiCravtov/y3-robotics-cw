@@ -27,16 +27,16 @@ WHEEL_SEPARATION = 16.0
 # Please calibrate these before using them using the appropriate calibration functions
 MAX_DPS = 150.0  # maximum degrees per second
 RADIUS_MODIFIER = (
-    0.98  # represents the multiplier between actual radius and measured radius
+    0.85  # represents the multiplier between actual radius and measured radius, previously 0.98
 )
 # RADIUS_MODIFIER = 0.95
 
 # MCL Constants
-NUMBER_OF_PARTICLES = 100
+NUMBER_OF_PARTICLES = 500
 # Variance of e,f,g for
-e = 5.0
-f = 1.0
-g = 0.7
+e = 0
+f = 0
+g = 0
 
 
 class Particle:
@@ -50,11 +50,11 @@ class Particle:
         var = random.gauss(0, sigma=e)
         self.x += math.cos(self.theta) * (distance + var)
         self.y += math.sin(self.theta) * (distance + var)
-        self.theta += random.gauss(0, sigma=f)
+        self.theta = normalize_angle(self.theta + random.gauss(0, sigma=f))
 
     def turn(self, angle: float):
         var = random.gauss(0, sigma=g)
-        self.theta += angle + var
+        self.theta = normalize_angle(self.theta + angle + var)
 
 
 T = TypeVar("T")
@@ -69,11 +69,8 @@ def forEach(iterable: Iterable[T], func: Callable[[T], Any]) -> None:
         func(i)
 
 
-def normalise(angle: float) -> float:
-    """
-    Converts BP's angle [-180, 180] to [0, 360]
-    """
-    return angle + 180.0
+def normalize_angle(rad_angle: float) -> float:
+    return (rad_angle + math.pi) % (2 * math.pi) - math.pi
 
 
 def angle(rad: float) -> float:
@@ -104,8 +101,7 @@ class WheelMovement():
         self.wheel = wheel
         self.remaining_degrees = angle(distance / (2 * actual_radius()))
         self.forward = distance > 0
-        self.dps = (speed / actual_radius()) * \
-            360.0 * (1 if self.forward else -1)
+        self.dps = (speed / actual_radius()) * 360.0 * (1 if self.forward else -1)
         self.reset_angle()
 
     def reset_angle(self):
@@ -115,7 +111,6 @@ class WheelMovement():
         delta_angle = BP.get_motor_encoder(self.wheel)
         self.remaining_degrees -= delta_angle
         BP.offset_motor_encoder(self.wheel, BP.get_motor_encoder(self.wheel))
-        print(f"    Wheel {self.wheel} angle elapsed {delta_angle}")
 
         if self.is_complete():
             BP.set_motor_dps(self.wheel, 0)
@@ -154,8 +149,7 @@ def calibrate_MAX_DPS():
         BP.set_motor_power(wheel, 0)
 
     MAX_DPS = mean(dps)
-    print(
-        f"Calibration for max degrees per second complete\nMax dps = {MAX_DPS}")
+    print(f"Calibration for max degrees per second complete\nMax dps = {MAX_DPS}")
 
 
 def calibrate_RADIUS_MODIFIER(meters: float = 1.0):
@@ -167,8 +161,7 @@ def calibrate_RADIUS_MODIFIER(meters: float = 1.0):
     motorMovementHandler(
         list(map(lambda w: WheelMovement(w, distance=distance), BOTH_WHEELS))
     )
-    actual_distance = float(
-        input("What is the actual distance traveled (cm)? "))
+    actual_distance = float(input("What is the actual distance traveled (cm)? "))
     RADIUS_MODIFIER = actual_distance / distance
     print(f"Actual wheel radius: {actual_radius()}")
 
@@ -226,7 +219,7 @@ class Robot:
         BP.set_motor_position_kp(RIGHT_WHEEL, 55)
 
         self.particles = [
-            Particle(0, 0, 0, 1 / NUMBER_OF_PARTICLES) for _ in range(100)
+            Particle(0, 0, 0, 1 / NUMBER_OF_PARTICLES) for _ in range(NUMBER_OF_PARTICLES)
         ]
 
         print("Robot initialized successfully")
@@ -240,8 +233,7 @@ class Robot:
 
     def draw_particles(self):
         for particle in self.particles:
-            print("drawParticles:" +
-                  f"({particle.x}, {particle.y}, {particle.theta})")
+            print("drawParticles:" + f"({particle.x}, {particle.y}, {particle.theta})")
 
     def forward(self, distance: float):
         """
@@ -252,12 +244,12 @@ class Robot:
         for particle in self.particles:
             particle.move_forward(distance)
 
-        return motorMovementHandler(
+        motorMovementHandler(
             [
                 WheelMovement(
                     LEFT_WHEEL,
                     distance=distance,
-                    speed=dps_to_speed(reduction_factor=0.53),
+                    speed=dps_to_speed(reduction_factor=0.5),
                 ),
                 WheelMovement(
                     RIGHT_WHEEL,
@@ -267,47 +259,48 @@ class Robot:
             ]
         )
 
-    def turn(self, direction: Rotation, degrees: float):
+        print(f"Moved {distance} forward")
+
+        return
+
+    def turn(self, degrees: float):
         """
         Turns in the direction, by alpha degrees.
         """
-        forward_wheel, backward_wheel = (
-            (LEFT_WHEEL, RIGHT_WHEEL)
-            if direction == Rotation.Clockwise
-            else (RIGHT_WHEEL, LEFT_WHEEL)
-        )
+        forward_wheel, backward_wheel = (RIGHT_WHEEL, LEFT_WHEEL)
         distance = WHEEL_SEPARATION * rad(degrees) / 2
         anglesForMovement = angle(distance / (2 * actual_radius()))
 
         for particle in self.particles:
-            particle.turn(anglesForMovement)
+            particle.turn(rad(degrees))
 
+        stop()
         BP.set_motor_position(forward_wheel, anglesForMovement)
         BP.set_motor_position(backward_wheel, -anglesForMovement)
 
-        # motorMovementHandler([
-        #     WheelMovement(forward_wheel, distance = distance),
-        #     WheelMovement(backward_wheel, distance = -distance)
-        # ])
-
         print("Before sleep")
 
-        time.sleep(1.4 * (anglesForMovement / MAX_DPS))
+        time.sleep(1.4 * (abs(anglesForMovement) / MAX_DPS))
 
         print("After sleep")
 
     def navigate_to_waypoint(self, x: float, y: float):
         current_x, current_y, current_theta = self.get_current_position()
         target_angle = math.atan2(y - current_y, x - current_x)
-        angle_to_turn = target_angle - current_theta
-
+        angle_to_turn = normalize_angle(target_angle - current_theta)
+        distance = math.sqrt((x - current_x) ** 2 + (y - current_y) ** 2)
+        print(f"Current position: ({current_x}, {current_y}, {angle(current_theta)})")
+        print(f"Angle to turn {angle(angle_to_turn)}, distance: {distance}")
         self.turn(
-            Rotation.Counterclockwise if angle_to_turn > 0 else Rotation.Clockwise,
-            degrees=abs(rad(angle_to_turn)),
+            degrees=angle(angle_to_turn)
         )
 
-        distance = math.sqrt((x - current_x) ** 2 + (y - current_y) ** 2)
+        print("Turn complete. Moving forward...")
+        time.sleep(0.75)
+
         self.forward(distance)
+
+        time.sleep(0.5)
 
 
 def block():
@@ -321,35 +314,41 @@ def MCL():
             robot.forward(10.0)
             robot.draw_particles()
             time.sleep(0.5)
-        robot.turn(Rotation.Counterclockwise, degrees=90.0)
+        robot.turn(degrees=90.0)
         robot.draw_particles()
         time.sleep(0.5)
 
 
 def waypointTest():
     robot = Robot()
+    # robot.navigate_to_waypoint(30, 0)
+    # robot.navigate_to_waypoint(30, 30)
+    # robot.navigate_to_waypoint(0, 30)
+    # robot.navigate_to_waypoint(0, 0)
     robot.navigate_to_waypoint(30, 30)
+    robot.navigate_to_waypoint(30, 0)
+    robot.navigate_to_waypoint(0, 30)
+    robot.navigate_to_waypoint(0, 0)
 
 
 def main():
     print("Hello Pi!")
 
-    # turn(Rotation.Clockwise, degrees = 45.0)
-    # Initial calibration
-    # calibrate_max_dps()
-    # calibrate_radius_modifier()
-
-    # Block
-    # block()
-
     # Square of 40cm
+    # robot = Robot()
     # for x in range(4):
-    #     forward(-40.0)
+    #     robot.forward(40.0)
     #     stop()
-    #     turn(Rotation.Clockwise, degrees=90.0)
+    #     robot.turn(degrees=90.0)
     #     stop()
 
-    MCL()
+    # robot.turn(degrees = 90.0)
+    # time.sleep(1)
+    # robot.turn(degrees = -90.0)
+
+    waypointTest()
+
+    # if __name__ == "__main__":
     # motorMovementHandler(
     #         [
     #             WheelMovement(
@@ -365,6 +364,8 @@ def main():
     #         ]
     #     )
     # waypointTest()
+    # robot = Robot()
+    # robot.turn(degrees=90.0)
 
     # Block
     # block()
