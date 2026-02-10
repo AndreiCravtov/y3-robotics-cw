@@ -296,7 +296,7 @@ class Robot:
         current_x, current_y, current_theta = self.get_current_position()
         target_angle = math.atan2(y - current_y, x - current_x)
         angle_to_turn = target_angle - current_theta
-
+        
         self.turn(
             Rotation.Counterclockwise if angle_to_turn > 0 else Rotation.Clockwise,
             degrees=abs(rad(angle_to_turn)),
