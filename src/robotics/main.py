@@ -32,11 +32,11 @@ RADIUS_MODIFIER = (
 # RADIUS_MODIFIER = 0.95
 
 # MCL Constants
-NUMBER_OF_PARTICLES = 500
+NUMBER_OF_PARTICLES = 100
 # Variance of e,f,g for
-e = 0
-f = 0
-g = 0
+e = 0.0
+f = 0.0
+g = 0.0
 
 
 class Particle:
@@ -55,6 +55,12 @@ class Particle:
     def turn(self, angle: float):
         var = random.gauss(0, sigma=g)
         self.theta = normalize_angle(self.theta + angle + var)
+
+    def __str__(self):
+        return f"({self.x}, {self.y}, {self.theta})"
+
+    def __repr__(self):
+        return f"({self.x + 100}, {self.y + 100}, {self.theta})"
 
 
 T = TypeVar("T")
@@ -232,8 +238,7 @@ class Robot:
         )
 
     def draw_particles(self):
-        for particle in self.particles:
-            print("drawParticles:" + f"({particle.x}, {particle.y}, {particle.theta})")
+        print("drawParticles:" + str(self.particles))
 
     def forward(self, distance: float):
         """
@@ -325,47 +330,48 @@ def waypointTest():
     # robot.navigate_to_waypoint(30, 30)
     # robot.navigate_to_waypoint(0, 30)
     # robot.navigate_to_waypoint(0, 0)
-    robot.navigate_to_waypoint(30, 30)
     robot.navigate_to_waypoint(30, 0)
     robot.navigate_to_waypoint(0, 30)
+    robot.navigate_to_waypoint(30, 30)
+    robot.navigate_to_waypoint(-10, 10)
+    robot.navigate_to_waypoint(0, -20)
     robot.navigate_to_waypoint(0, 0)
 
 
-def main():
-    print("Hello Pi!")
+print("Hello Pi!")
 
-    # Square of 40cm
-    # robot = Robot()
-    # for x in range(4):
-    #     robot.forward(40.0)
-    #     stop()
-    #     robot.turn(degrees=90.0)
-    #     stop()
+# Square of 40cm
+# robot = Robot()
+# for x in range(4):
+#     robot.forward(40.0)
+#     stop()
+#     robot.turn(degrees=90.0)
+#     stop()
 
-    # robot.turn(degrees = 90.0)
-    # time.sleep(1)
-    # robot.turn(degrees = -90.0)
+# robot.turn(degrees = 90.0)
+# time.sleep(1)
+# robot.turn(degrees = -90.0)
+waypointTest()
+# MCL()
 
-    waypointTest()
+# if __name__ == "__main__":
+# motorMovementHandler(
+#         [
+#             WheelMovement(
+#                 LEFT_WHEEL,
+#                 distance=10.0,
+#                 speed=dps_to_speed(reduction_factor=0.53),
+#             ),
+#             WheelMovement(
+#                 RIGHT_WHEEL,
+#                 distance=10.0,
+#                 speed=dps_to_speed(reduction_factor=0.5),
+#             ),
+#         ]
+#     )
+# waypointTest()
+# robot = Robot()
+# robot.turn(degrees=90.0)
 
-    # if __name__ == "__main__":
-    # motorMovementHandler(
-    #         [
-    #             WheelMovement(
-    #                 LEFT_WHEEL,
-    #                 distance=10.0,
-    #                 speed=dps_to_speed(reduction_factor=0.53),
-    #             ),
-    #             WheelMovement(
-    #                 RIGHT_WHEEL,
-    #                 distance=10.0,
-    #                 speed=dps_to_speed(reduction_factor=0.5),
-    #             ),
-    #         ]
-    #     )
-    # waypointTest()
-    # robot = Robot()
-    # robot.turn(degrees=90.0)
-
-    # Block
-    # block()
+# Block
+# block()
