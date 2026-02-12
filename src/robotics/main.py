@@ -5,7 +5,7 @@ from enum import Enum
 from statistics import mean
 from typing import Any, Callable, Iterable, List, TypeVar, Tuple
 
-import brickpi3  # type: ignore
+import brickpi3
 
 BP = brickpi3.BrickPi3()
 
@@ -101,7 +101,8 @@ class WheelMovement():
         self.wheel = wheel
         self.remaining_degrees = angle(distance / (2 * actual_radius()))
         self.forward = distance > 0
-        self.dps = (speed / actual_radius()) * 360.0 * (1 if self.forward else -1)
+        self.dps = (speed / actual_radius()) * \
+            360.0 * (1 if self.forward else -1)
         self.reset_angle()
 
     def reset_angle(self):
@@ -143,13 +144,14 @@ def calibrate_MAX_DPS():
     time.sleep(0.5)
 
     for wheel in [LEFT_WHEEL, RIGHT_WHEEL]:
-        dps.append(normalise(BP.get_motor_encoder(wheel)) * 2)
+        dps.append(normalize_angle(BP.get_motor_encoder(wheel)) * 2)
 
     for wheel in [LEFT_WHEEL, RIGHT_WHEEL]:
         BP.set_motor_power(wheel, 0)
 
     MAX_DPS = mean(dps)
-    print(f"Calibration for max degrees per second complete\nMax dps = {MAX_DPS}")
+    print(
+        f"Calibration for max degrees per second complete\nMax dps = {MAX_DPS}")
 
 
 def calibrate_RADIUS_MODIFIER(meters: float = 1.0):
@@ -161,7 +163,8 @@ def calibrate_RADIUS_MODIFIER(meters: float = 1.0):
     motorMovementHandler(
         list(map(lambda w: WheelMovement(w, distance=distance), BOTH_WHEELS))
     )
-    actual_distance = float(input("What is the actual distance traveled (cm)? "))
+    actual_distance = float(
+        input("What is the actual distance traveled (cm)? "))
     RADIUS_MODIFIER = actual_distance / distance
     print(f"Actual wheel radius: {actual_radius()}")
 
@@ -233,7 +236,8 @@ class Robot:
 
     def draw_particles(self):
         for particle in self.particles:
-            print("drawParticles:" + f"({particle.x}, {particle.y}, {particle.theta})")
+            print("drawParticles:" +
+                  f"({particle.x}, {particle.y}, {particle.theta})")
 
     def forward(self, distance: float):
         """
@@ -289,7 +293,8 @@ class Robot:
         target_angle = math.atan2(y - current_y, x - current_x)
         angle_to_turn = normalize_angle(target_angle - current_theta)
         distance = math.sqrt((x - current_x) ** 2 + (y - current_y) ** 2)
-        print(f"Current position: ({current_x}, {current_y}, {angle(current_theta)})")
+        print(
+            f"Current position: ({current_x}, {current_y}, {angle(current_theta)})")
         print(f"Angle to turn {angle(angle_to_turn)}, distance: {distance}")
         self.turn(
             degrees=angle(angle_to_turn)

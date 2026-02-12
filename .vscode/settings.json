@@ -1,4 +1,8 @@
 {
+  "files.associations": {
+    "*.nix": "nix",
+    "justfile": "yaml"
+  },
   "nix.enableLanguageServer": true,
   "nix.serverPath": "nixd",
   "nix.serverSettings": {
@@ -22,8 +26,6 @@
   "[nix]": {
     "editor.defaultFormatter": "jnoortheen.nix-ide"
   },
-  "files.associations": {
-    "*.nix": "nix",
-    "justfile": "yaml"
-  }
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+  "basedpyright.analysis.configFilePath": "${workspaceFolder}/pyproject.toml"
 }
