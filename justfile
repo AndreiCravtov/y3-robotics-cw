@@ -13,9 +13,14 @@ fmt:
   nix fmt && uv run ruff format src
 
 # Sync files with remote on PI
-[group('Main')]
-watch-rsync IP USER=env('RSYNC_USER'):
+[group('Pi Devops')]
+watch-rsync IP=env('PI_IP') USER=env('RSYNC_USER'):
   chmod 600 ./.rsync_passwd && watch -n 1 'rsync -az --delete --filter=":- .gitignore" --password-file="./.rsync_passwd" ./ pi@{{IP}}::prac-files/y3-robotics-cw-{{USER}}/'
+
+# Sync files with remote on PI
+[group('Pi Devops')]
+set-pi-ip IP:
+  echo "export PI_IP={{IP}}" > .envrc.session && direnv reload
 
 # Update nix flake
 [group('Nix')]

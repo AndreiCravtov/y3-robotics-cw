@@ -15,5 +15,8 @@ export VIRTUAL_ENV=".venv"
 uv sync
 #layout python (or change to `layout python3` or something if needed)
 
+# Load session variables (if exist)
+source_env .envrc.session
+
 # Rest of the configuration
 export RSYNC_USER={{IMPERIAL SHORTCODE}}
