@@ -38,8 +38,8 @@ RADIUS_MODIFIER = (
 # MCL Constants
 NUMBER_OF_PARTICLES = 500
 # Variance of e,f,g for
-e = 0.10 # forward sonar helps with reducing uncertainty with repeated measurements throughout the execution of a movement
-f = 0.04 # sideward facing sonar helps with reducing uncertainty with repeated measurements throughout the execution of a movement
+e = 0.40 # forward sonar helps with reducing uncertainty with repeated measurements throughout the execution of a movement
+f = 0.06 # sideward facing sonar helps with reducing uncertainty with repeated measurements throughout the execution of a movement
 g = 0.03
 
 # e = 0
@@ -86,7 +86,7 @@ class Particle:
         assert sonar_direction in ["forward", "right"]
         sonar_bearing = self.theta if sonar_direction == "forward" else self.theta + rad(-90.0)
         c = 0.001
-        sigma = 1.0
+        sigma = 2.0 # was 1.0, but suggested to be 2-3cm on spec
         closest_dist = float("inf")
 
         pts = list(POINTS.values())
@@ -328,6 +328,7 @@ class Robot:
                     break
 
         self.particles = new_particles
+        assert(len(self.particles) == NUMBER_OF_PARTICLES)
 
     def draw_walls(self):
         pts = list(POINTS.values())
@@ -395,11 +396,6 @@ class Robot:
         angle_to_turn = normalize_angle(target_angle - current_theta)
         distance = math.sqrt((x - current_x) ** 2 + (y - current_y) ** 2)
 
-        epsilon = 5.0
-        if distance < epsilon:
-            print("Arrived at position")
-            return
-
         print(
             f"Current position: ({current_x}, {current_y}, {angle(current_theta)})")
         print(f"Angle to turn {angle(angle_to_turn)}, distance: {distance}")
@@ -411,13 +407,21 @@ class Robot:
         
         time.sleep(0.75)
 
+        if distance < 10.0:
+            end_this_turn = True
+        else:
+            end_this_turn = False
+
         distance = min(10.0, distance)
 
         self.forward(distance)
 
         self.resample("single")
 
-        return self.navigate_to_waypoint(x, y)
+        if not end_this_turn:
+            return self.navigate_to_waypoint(x, y)
+        else:
+            return None
 
     def get_forward_sonar_reading(self) -> float:
         while True: 
