@@ -433,41 +433,4 @@ def real_world_test():
     robot.navigate_to_waypoint(84, 84)
     robot.navigate_to_waypoint(84, 30)
 
-def main():
-    print("Hello Pi!")
-
-    # Square of 40cm
-    # robot = Robot()
-    # for x in range(4):
-    #     robot.forward(40.0)
-    #     stop()
-    #     robot.turn(degrees=90.0)
-    #     stop()
-
-    # robot.turn(degrees = 90.0)
-    # time.sleep(1)
-    # robot.turn(degrees = -90.0)
-
-    waypointTest()
-
-    # if __name__ == "__main__":
-    # motorMovementHandler(
-    #         [
-    #             WheelMovement(
-    #                 LEFT_WHEEL,
-    #                 distance=10.0,
-    #                 speed=dps_to_speed(reduction_factor=0.53),
-    #             ),
-    #             WheelMovement(
-    #                 RIGHT_WHEEL,
-    #                 distance=10.0,
-    #                 speed=dps_to_speed(reduction_factor=0.5),
-    #             ),
-    #         ]
-    #     )
-    # waypointTest()
-    # robot = Robot()
-    # robot.turn(degrees=90.0)
-
-    # Block
-    # block()
+real_world_test()
