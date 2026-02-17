@@ -10,7 +10,8 @@ import brickpi3
 BP = brickpi3.BrickPi3()
 
 # Change to fit wiring configuration on the robot
-SONAR_PORT = BP.PORT_1
+FORWARD_SONAR_PORT = BP.PORT_1
+RIGHT_SONAR_PORT = BP.PORT_2
 LEFT_WHEEL = BP.PORT_A
 RIGHT_WHEEL = BP.PORT_B
 BOTH_WHEELS = [LEFT_WHEEL, RIGHT_WHEEL]
@@ -30,16 +31,20 @@ WHEEL_SEPARATION = 16.0
 # Please calibrate these before using them using the appropriate calibration functions
 MAX_DPS = 150.0  # maximum degrees per second
 RADIUS_MODIFIER = (
-    0.841  # represents the multiplier between actual radius and measured radius, previously 0.98
+    0.825  # represents the multiplier between actual radius and measured radius, previously 0.98
 )
 # RADIUS_MODIFIER = 0.95
 
 # MCL Constants
 NUMBER_OF_PARTICLES = 500
 # Variance of e,f,g for
-e = 0.3
-f = 0.3
-g = 0.3
+e = 0.10 # forward sonar helps with reducing uncertainty with repeated measurements throughout the execution of a movement
+f = 0.04 # sideward facing sonar helps with reducing uncertainty with repeated measurements throughout the execution of a movement
+g = 0.03
+
+# e = 0
+# f = 0
+# g = 0
 
 POINTS = {
     "O": (0, 0),
@@ -72,13 +77,15 @@ class Particle:
         self.theta = normalize_angle(self.theta + angle + var)
 
     def __str__(self):
-        return f"({self.x}, {self.y}, {self.theta})"
+        return f"({self.x}, {self.y}, {angle(self.theta)})"
 
     def __repr__(self):
-        return f"({self.x + 100}, {self.y + 100}, {self.theta})"
+        return f"({self.x + 100}, {self.y + 100}, {self.theta}, {self.w})"
 
-    def calculate_likelihood(self, sonar_reading: float):
-        c = 0.1
+    def calculate_likelihood(self, sonar_reading: float, sonar_direction : str = "forward"):
+        assert sonar_direction in ["forward", "right"]
+        sonar_bearing = self.theta if sonar_direction == "forward" else self.theta + rad(-90.0)
+        c = 0.001
         sigma = 1.0
         closest_dist = float("inf")
 
@@ -86,7 +93,7 @@ class Particle:
 
         for (ax, ay), (bx, by) in zip(pts, pts[1:] + pts[:1]):
 
-            den = ((by - ay) * math.cos(self.theta) - (bx - ax) * math.sin(self.theta))
+            den = ((by - ay) * math.cos(sonar_bearing) - (bx - ax) * math.sin(sonar_bearing))
             
             if abs(den) < 1e-9:
                 continue
@@ -98,8 +105,8 @@ class Particle:
             if dist <= 0:
                 continue
 
-            wall_x = self.x + dist * math.cos(self.theta)
-            wall_y = self.y + dist * math.sin(self.theta)
+            wall_x = self.x + dist * math.cos(sonar_bearing)
+            wall_y = self.y + dist * math.sin(sonar_bearing)
 
             eps = 1e-6
 
@@ -127,7 +134,6 @@ def forEach(iterable: Iterable[T], func: Callable[[T], Any]) -> None:
 
 def normalize_angle(rad_angle: float) -> float:
     return (rad_angle + math.pi) % (2 * math.pi) - math.pi
-
 
 def angle(rad: float) -> float:
     return math.degrees(rad)
@@ -271,7 +277,8 @@ class Robot:
 
         stop()
 
-        BP.set_sensor_type(SONAR_PORT, BP.SENSOR_TYPE.NXT_ULTRASONIC)
+        BP.set_sensor_type(FORWARD_SONAR_PORT, BP.SENSOR_TYPE.NXT_ULTRASONIC)
+        BP.set_sensor_type(RIGHT_SONAR_PORT, BP.SENSOR_TYPE.NXT_ULTRASONIC)
         time.sleep(3)
 
         BP.set_motor_limits(LEFT_WHEEL, LEFT_POWER_LIMIT, 250)
@@ -290,7 +297,8 @@ class Robot:
         return (
             sum(p.x * p.w for p in self.particles),
             sum(p.y * p.w for p in self.particles),
-            sum(p.theta * p.w for p in self.particles),
+            # sum(normalize_angle(p.theta) * p.w for p in self.particles),
+            math.atan2(sum(math.sin(p.theta) * p.w for p in self.particles), sum(math.cos(p.theta) * p.w for p in self.particles))
         )
     
     def normalize_particle_weights(self):
@@ -324,32 +332,33 @@ class Robot:
     def draw_walls(self):
         pts = list(POINTS.values())
         for (ax, ay), (bx, by) in zip(pts, pts[1:] + pts[:1]):
-            print(f"drawLine:({ax},{ay},{bx},{by})")
+            print(f"drawLine:({ax + 100}, {ay + 100}, {bx + 100}, {by + 100})")
 
     def draw_particles(self):
         self.draw_walls()
         print("drawParticles:" + str(self.particles))
 
-    def forward(self, distance: float):
+    def forward(self, distance: float, update_particles : bool = True):
         """
         Commands the robot to move forward by this distance in centimeters
         """
-        distance = distance * (40 / 40.5)
+        distance = distance * (40 / 44)
 
-        for particle in self.particles:
-            particle.move_forward(distance)
+        if update_particles:
+            for particle in self.particles:
+                particle.move_forward(distance)
 
         motorMovementHandler(
             [
                 WheelMovement(
                     LEFT_WHEEL,
                     distance=distance,
-                    speed=dps_to_speed(reduction_factor=0.71),
+                    speed=dps_to_speed(reduction_factor=0.507),
                 ),
                 WheelMovement(
                     RIGHT_WHEEL,
                     distance=distance,
-                    speed=dps_to_speed(reduction_factor=0.7),
+                    speed=dps_to_speed(reduction_factor=0.5),
                 ),
             ]
         )
@@ -358,7 +367,7 @@ class Robot:
 
         return
 
-    def turn(self, degrees: float):
+    def turn(self, degrees: float, update_particles : bool = True):
         """
         Turns in the direction, by alpha degrees.
         """
@@ -366,8 +375,9 @@ class Robot:
         distance = WHEEL_SEPARATION * rad(degrees) / 2
         anglesForMovement = angle(distance / (2 * actual_radius()))
 
-        for particle in self.particles:
-            particle.turn(rad(degrees))
+        if update_particles:
+            for particle in self.particles:
+                particle.turn(rad(degrees))
 
         stop()
         BP.set_motor_position(forward_wheel, anglesForMovement)
@@ -384,6 +394,12 @@ class Robot:
         target_angle = math.atan2(y - current_y, x - current_x)
         angle_to_turn = normalize_angle(target_angle - current_theta)
         distance = math.sqrt((x - current_x) ** 2 + (y - current_y) ** 2)
+
+        epsilon = 5.0
+        if distance < epsilon:
+            print("Arrived at position")
+            return
+
         print(
             f"Current position: ({current_x}, {current_y}, {angle(current_theta)})")
         print(f"Angle to turn {angle(angle_to_turn)}, distance: {distance}")
@@ -395,27 +411,73 @@ class Robot:
         
         time.sleep(0.75)
 
+        distance = min(10.0, distance)
+
         self.forward(distance)
 
-        z = self.get_sonar_reading()
-        for particle in self.particles:
-            particle.calculate_likelihood(z)
-        
-        self.normalize_particle_weights()
-        self.resample_particles()
+        self.resample("double")
 
-        self.draw_particles()
+        return self.navigate_to_waypoint(x, y)
 
-    def get_sonar_reading(self) -> float:
+    def get_forward_sonar_reading(self) -> float:
         while True: 
             try:
-                reading = BP.get_sensor(SONAR_PORT)
+                reading = BP.get_sensor(FORWARD_SONAR_PORT)
                 if reading is not None and reading > 0:
                     return reading
             except brickpi3.SensorError as e:
                 pass
                 # print(f"Sensor error: {e}")
             time.sleep(0.1)
+
+    def get_right_sensor_reading(self) -> float:
+        while True:
+            try:
+                reading = BP.get_sensor(FORWARD_SONAR_PORT)
+                if reading is not None and reading > 0:
+                    return reading
+            except brickpi3.SensorError as e:
+                pass
+                # print(f"Sensor error: {e}")
+            time.sleep(0.1)
+
+    def resample(self, mode : str = "single"):
+        assert mode in ["single", "double"]
+        z = self.get_forward_sonar_reading()
+        for particle in self.particles:
+            particle.calculate_likelihood(z, sonar_direction = "forward")
+
+        # side sonar data fusion
+        if mode == "double":
+            d = self.get_right_sensor_reading()
+            for particle in self.particles:
+                particle.calculate_likelihood(d, sonar_direction = "right")
+
+        self.normalize_particle_weights()
+        self.resample_particles()
+
+        self.draw_particles()
+
+    def snap_to_wall(self, width_angle: int = 20):
+        # Rotate the robot slowly between -20 to 20 from the current position, and "snap" to the lowest sonar reading to get the robot to 90 degrees from the wall
+        print("Snapping to wall...")
+        self.turn(degrees=-width_angle, update_particles=True)
+
+        snapto_angle_relative = 0
+        min_sonar_reading = self.get_forward_sonar_reading()
+        angular_step = int(width_angle / 5)
+        for angle in range(int(width_angle * 2 / angular_step)):
+            print("  Reading new angle")
+            sonar_reading = self.get_forward_sonar_reading()
+            if sonar_reading < min_sonar_reading:
+                min_sonar_reading = sonar_reading
+                snapto_angle_relative = 0
+            else:
+                snapto_angle_relative += angular_step
+            self.turn(degrees=angular_step, update_particles=True)
+
+        self.turn(degrees=-snapto_angle_relative, update_particles=True)
+
 
 
 def block():
@@ -446,12 +508,19 @@ def real_world_test():
     robot = Robot()
     # robot.navigate_to_waypoint(84, 30)
     robot.navigate_to_waypoint(180, 30)
+    # robot.snap_to_wall()
     robot.navigate_to_waypoint(180, 54)
+    # robot.snap_to_wall()
     robot.navigate_to_waypoint(138, 54)
+    # robot.snap_to_wall()
     robot.navigate_to_waypoint(138, 168)
+    # robot.snap_to_wall()
     robot.navigate_to_waypoint(114, 168)
+    # robot.snap_to_wall()
     robot.navigate_to_waypoint(114, 84)
+    # robot.snap_to_wall()
     robot.navigate_to_waypoint(84, 84)
+    # robot.snap_to_wall()
     robot.navigate_to_waypoint(84, 30)
 
 def mock_test():
@@ -465,4 +534,4 @@ def main():
     real_world_test()
     # mock_test()
     # robot = Robot()
-    # robot.turn(360 * 5)
+    # robot.snap_to_wall()
