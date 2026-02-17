@@ -15,6 +15,8 @@ LEFT_WHEEL = BP.PORT_A
 RIGHT_WHEEL = BP.PORT_B
 BOTH_WHEELS = [LEFT_WHEEL, RIGHT_WHEEL]
 
+STARTING_COORDINATE = (84, 30)
+
 # Other constants
 POLLING_INTERVAL = 0.03  # seconds
 LEFT_POWER_LIMIT = 70
@@ -28,31 +30,27 @@ WHEEL_SEPARATION = 16.0
 # Please calibrate these before using them using the appropriate calibration functions
 MAX_DPS = 150.0  # maximum degrees per second
 RADIUS_MODIFIER = (
-    0.85  # represents the multiplier between actual radius and measured radius, previously 0.98
+    0.841  # represents the multiplier between actual radius and measured radius, previously 0.98
 )
 # RADIUS_MODIFIER = 0.95
 
 # MCL Constants
 NUMBER_OF_PARTICLES = 500
 # Variance of e,f,g for
-e = 0
-f = 0
-g = 0
+e = 0.3
+f = 0.3
+g = 0.3
 
-# POINTS = {
-#     "O": (0, 0),
-#     "A": (0, 168),
-#     "B": (84, 168),
-#     "C": (84, 126),
-#     "D": (84, 210),
-#     "E": (168, 210),
-#     "F": (168, 84),
-#     "G": (210, 84),
-#     "H": (210, 0),
-# }
 POINTS = {
-    "O": (61, 1000),
-    "A": (61, -1000)
+    "O": (0, 0),
+    "A": (0, 168),
+    "B": (84, 168),
+    "C": (84, 126),
+    "D": (84, 210),
+    "E": (168, 210),
+    "F": (168, 84),
+    "G": (210, 84),
+    "H": (210, 0),
 }
 
 
@@ -283,7 +281,7 @@ class Robot:
         BP.set_motor_position_kp(RIGHT_WHEEL, 55)
 
         self.particles = [
-            Particle(0, 0, 0, 1 / NUMBER_OF_PARTICLES) for _ in range(NUMBER_OF_PARTICLES)
+            Particle(STARTING_COORDINATE[0], STARTING_COORDINATE[1], 0, 1 / NUMBER_OF_PARTICLES) for _ in range(NUMBER_OF_PARTICLES)
         ]
 
         print("Robot initialized successfully")
@@ -324,15 +322,13 @@ class Robot:
         self.particles = new_particles
 
     def draw_particles(self):
-        for particle in self.particles:
-            print("drawParticles:" +
-                  f"({particle.x}, {particle.y}, {particle.theta})")
+        print("drawParticles:" + str(self.particles))
 
     def forward(self, distance: float):
         """
         Commands the robot to move forward by this distance in centimeters
         """
-        distance = distance * (40 / 39.3)
+        distance = distance * (40 / 40.5)
 
         for particle in self.particles:
             particle.move_forward(distance)
@@ -342,12 +338,12 @@ class Robot:
                 WheelMovement(
                     LEFT_WHEEL,
                     distance=distance,
-                    speed=dps_to_speed(reduction_factor=0.5),
+                    speed=dps_to_speed(reduction_factor=0.71),
                 ),
                 WheelMovement(
                     RIGHT_WHEEL,
                     distance=distance,
-                    speed=dps_to_speed(reduction_factor=0.5),
+                    speed=dps_to_speed(reduction_factor=0.7),
                 ),
             ]
         )
@@ -402,7 +398,7 @@ class Robot:
         self.normalize_particle_weights()
         self.resample_particles()
 
-
+        self.draw_particles()
 
     def get_sonar_reading(self) -> float:
         while True: 
@@ -411,7 +407,8 @@ class Robot:
                 if reading is not None and reading > 0:
                     return reading
             except brickpi3.SensorError as e:
-                print(f"Sensor error: {e}")
+                pass
+                # print(f"Sensor error: {e}")
             time.sleep(0.1)
 
 
@@ -441,7 +438,7 @@ def waypointTest():
 
 def real_world_test():
     robot = Robot()
-    robot.navigate_to_waypoint(84, 30)
+    # robot.navigate_to_waypoint(84, 30)
     robot.navigate_to_waypoint(180, 30)
     robot.navigate_to_waypoint(180, 54)
     robot.navigate_to_waypoint(138, 54)
@@ -459,5 +456,7 @@ def mock_test():
     robot.navigate_to_waypoint(40, 10)
 
 def main():
-    # real_world_test()
-    mock_test()
+    real_world_test()
+    # mock_test()
+    # robot = Robot()
+    # robot.turn(360 * 5)
