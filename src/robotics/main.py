@@ -321,7 +321,13 @@ class Robot:
 
         self.particles = new_particles
 
+    def draw_walls(self):
+        pts = list(POINTS.values())
+        for (ax, ay), (bx, by) in zip(pts, pts[1:] + pts[:1]):
+            print(f"drawLine:({ax},{ay},{bx},{by})")
+
     def draw_particles(self):
+        self.draw_walls()
         print("drawParticles:" + str(self.particles))
 
     def forward(self, distance: float):
