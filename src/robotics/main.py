@@ -405,7 +405,14 @@ class Robot:
 
 
     def get_sonar_reading(self) -> float:
-        return BP.get_sensor(SONAR_PORT)
+        while True: 
+            try:
+                reading = BP.get_sensor(SONAR_PORT)
+                if reading is not None and reading > 0:
+                    return reading
+            except brickpi3.SensorError as e:
+                print(f"Sensor error: {e}")
+            time.sleep(0.1)
 
 
 def block():
