@@ -10,6 +10,7 @@ import brickpi3
 BP = brickpi3.BrickPi3()
 
 # Change to fit wiring configuration on the robot
+SONAR_PORT = BP.PORT_1
 LEFT_WHEEL = BP.PORT_A
 RIGHT_WHEEL = BP.PORT_B
 BOTH_WHEELS = [LEFT_WHEEL, RIGHT_WHEEL]
@@ -38,6 +39,18 @@ e = 0
 f = 0
 g = 0
 
+POINTS = {
+    "O": (0, 0),
+    "A": (0, 168),
+    "B": (84, 168),
+    "C": (84, 126),
+    "D": (84, 210),
+    "E": (168, 210),
+    "F": (168, 84),
+    "G": (210, 84),
+    "H": (210, 0),
+}
+
 
 class Particle:
     def __init__(self, x: float, y: float, theta: float, weight: float):
@@ -55,6 +68,47 @@ class Particle:
     def turn(self, angle: float):
         var = random.gauss(0, sigma=g)
         self.theta = normalize_angle(self.theta + angle + var)
+
+    def __str__(self):
+        return f"({self.x}, {self.y}, {self.theta})"
+
+    def __repr__(self):
+        return f"({self.x + 100}, {self.y + 100}, {self.theta})"
+
+    def calculate_likelihood(self, sonar_reading: float):
+        c = 0.1
+        sigma = 1.0
+        closest_dist = float("inf")
+
+        pts = list(POINTS.values())
+
+        for (ax, ay), (bx, by) in zip(pts, pts[1:] + pts[:1], strict=True):
+
+            den = ((by - ay) * math.cos(self.theta) - (bx - ax) * math.sin(self.theta))
+            
+            if abs(den) < 1e-9:
+                continue
+
+            num = ((by - ay) * (ax - self.x) - (bx - ax) * (ay - self.y))
+
+            dist = num / den
+
+            if dist <= 0:
+                continue
+
+            wall_x = self.x + dist * math.cos(self.theta)
+            wall_y = self.y + dist * math.sin(self.theta)
+
+            eps = 1e-6
+
+            if (min(ax, bx) - eps <= wall_x <= max(ax, bx) + eps and
+                min(ay, by) - eps <= wall_y <= max(ay, by) + eps):
+                closest_dist = min(closest_dist, dist)
+
+        if closest_dist == float("inf"):
+            print("Something went wrong with calculating likelihood, no walls detected:" + self.__str__())
+
+        self.w = math.exp(-((sonar_reading - closest_dist) ** 2) / (2 * sigma**2)) + c
 
 
 T = TypeVar("T")
@@ -233,6 +287,34 @@ class Robot:
             sum(p.y * p.w for p in self.particles),
             sum(p.theta * p.w for p in self.particles),
         )
+    
+    def normalize_particle_weights(self):
+        total_weight = sum(p.w for p in self.particles)
+        if total_weight == 0:
+            print("All particles have zero weight???, resetting to uniform distribution")
+            for p in self.particles:
+                p.w = 1 / NUMBER_OF_PARTICLES
+        else:
+            for p in self.particles:
+                p.w /= total_weight
+    
+    def resample_particles(self):
+        self.normalize_particle_weights()
+        cumulative_weights = []
+        cumulative_sum = 0
+        for p in self.particles:
+            cumulative_sum += p.w
+            cumulative_weights.append(cumulative_sum)
+
+        new_particles = []
+        for _ in range(NUMBER_OF_PARTICLES):
+            r = random.random()
+            for i, cw in enumerate(cumulative_weights):
+                if r < cw:
+                    new_particles.append(Particle(self.particles[i].x, self.particles[i].y, self.particles[i].theta, 1 / NUMBER_OF_PARTICLES))
+                    break
+
+        self.particles = new_particles
 
     def draw_particles(self):
         for particle in self.particles:
@@ -307,6 +389,9 @@ class Robot:
 
         time.sleep(0.5)
 
+    def get_sonar_reading(self) -> float:
+        return BP.get_sensor(SONAR_PORT)
+
 
 def block():
     input("Please reset robot and press enter to start experiment")
@@ -335,6 +420,18 @@ def waypointTest():
     robot.navigate_to_waypoint(0, 30)
     robot.navigate_to_waypoint(0, 0)
 
+
+def real_world_test():
+    robot = Robot()
+    robot.navigate_to_waypoint(84, 30)
+    robot.navigate_to_waypoint(180, 30)
+    robot.navigate_to_waypoint(180, 54)
+    robot.navigate_to_waypoint(138, 54)
+    robot.navigate_to_waypoint(138, 168)
+    robot.navigate_to_waypoint(114, 168)
+    robot.navigate_to_waypoint(114, 84)
+    robot.navigate_to_waypoint(84, 84)
+    robot.navigate_to_waypoint(84, 30)
 
 def main():
     print("Hello Pi!")
