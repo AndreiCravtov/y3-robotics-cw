@@ -39,8 +39,8 @@ RADIUS_MODIFIER = (
 NUMBER_OF_PARTICLES = 500
 # Variance of e,f,g for
 e = 0.40 # forward sonar helps with reducing uncertainty with repeated measurements throughout the execution of a movement
-f = 0.06 # sideward facing sonar helps with reducing uncertainty with repeated measurements throughout the execution of a movement
-g = 0.03
+f = 0.03 # sideward facing sonar helps with reducing uncertainty with repeated measurements throughout the execution of a movement
+g = 0.02
 
 # e = 0
 # f = 0
@@ -390,36 +390,44 @@ class Robot:
 
         print("After sleep")
 
-    def navigate_to_waypoint(self, x: float, y: float):
+    def navigate_to_waypoint(self, x: float, y: float, step_size : float = 10.0, verbose : bool = True):
+        """"
+        Navigates to the waypoint in step_size sprints, with MCL at each sprint's end
+        """
+        # Compute directions to the waypoint from the current MCL cloud
         current_x, current_y, current_theta = self.get_current_position()
         target_angle = math.atan2(y - current_y, x - current_x)
         angle_to_turn = normalize_angle(target_angle - current_theta)
         distance = math.sqrt((x - current_x) ** 2 + (y - current_y) ** 2)
 
-        print(
-            f"Current position: ({current_x}, {current_y}, {angle(current_theta)})")
-        print(f"Angle to turn {angle(angle_to_turn)}, distance: {distance}")
-        self.turn(
-            degrees=angle(angle_to_turn)
-        )
+        # Describe the waypoint action
+        if verbose:
+            print(f"Current position: ({current_x}, {current_y}, {angle(current_theta)})")
+            print(f"Angle to turn {angle(angle_to_turn)}, distance: {distance}")
 
-        print("Turn complete. Moving forward...")
-        
-        time.sleep(0.75)
+        # Turn towards the waypoint, from the precomputed directional values
+        self.turn(degrees=angle(angle_to_turn))
+        if verbose:
+            print("Turn complete. Moving forward...")
+        time.sleep(0.3)
 
-        if distance < 10.0:
+        # Determine if another step has to be performed after this, or is this the final sprint
+        if distance < step_size:
             end_this_turn = True
         else:
             end_this_turn = False
+        distance = min(step_size, distance)
 
-        distance = min(10.0, distance)
-
+        # Go forward by this distance (complete the sprint)
         self.forward(distance)
 
+        # MCL localisation using sonar measurements, and resamples the cloud of particles
         self.resample("single")
 
+        # Recursively call the function without verbose if we have yet to reach our waypoint, which will resample
+        # our location from the newly repopulated cloud
         if not end_this_turn:
-            return self.navigate_to_waypoint(x, y)
+            return self.navigate_to_waypoint(x = x, y = y, step_size = step_size, verbose = False)
         else:
             return None
 
@@ -445,43 +453,74 @@ class Robot:
                 # print(f"Sensor error: {e}")
             time.sleep(0.1)
 
-    def resample(self, mode : str = "single"):
-        assert mode in ["single", "double"]
+    def resample(self, mode : str = "forward_only"):
+        """
+        Performs a resampling of the points by taking measurements from the sonar.
+        """
+        assert mode in ["forward_only", "all_sensors"]
         z = self.get_forward_sonar_reading()
         for particle in self.particles:
             particle.calculate_likelihood(z, sonar_direction = "forward")
+        self.normalize_particle_weights()
+        self.resample_particles()
 
         # side sonar data fusion
         if mode == "double":
             d = self.get_right_sensor_reading()
             for particle in self.particles:
                 particle.calculate_likelihood(d, sonar_direction = "right")
-
-        self.normalize_particle_weights()
-        self.resample_particles()
+            self.normalize_particle_weights()
+            self.resample_particles()
 
         self.draw_particles()
 
-    def snap_to_wall(self, width_angle: int = 20):
-        # Rotate the robot slowly between -20 to 20 from the current position, and "snap" to the lowest sonar reading to get the robot to 90 degrees from the wall
-        print("Snapping to wall...")
-        self.turn(degrees=-width_angle, update_particles=True)
+    def snap_to_wall(self, width_angle: int = 20, sonar : str = "forward"):
+        """
+        Rotate the robot slowly between -20 to 20 from the current position, and "snap" to the lowest sonar reading
+        to get the robot to 90 degrees from the wall
+        """
 
+        assert sonar in ["forward", "right"]
+
+        print("Snapping to wall...")
+
+        # Save prevoius angle, to update all particles collectively at the end
+        previous_angle = self.get_current_position()[2]
+
+        # Turn to begin the scan
+        self.turn(degrees=-width_angle, update_particles=False)
+
+        # Depending on which sonar we are "snapping to the wall", we use a different sensor reading source
+        get_sonar_reading = (lambda : self.get_right_sensor_reading()) if sonar == "forward" else (lambda : self.get_right_sensor_reading())
+
+        # Perform the scan, which takes 10 measurements spread over the cone described by the width angle
         snapto_angle_relative = 0
-        min_sonar_reading = self.get_forward_sonar_reading()
+        min_angle = -width_angle
+        min_sonar_reading = get_sonar_reading()
         angular_step = int(width_angle / 5)
         for angle in range(int(width_angle * 2 / angular_step)):
-            print("  Reading new angle")
-            sonar_reading = self.get_forward_sonar_reading()
+            sonar_reading = get_sonar_reading()
             if sonar_reading < min_sonar_reading:
+                # New sonar reading is lower than our previous minimum sonar reading
                 min_sonar_reading = sonar_reading
                 snapto_angle_relative = 0
+                min_angle = angle * angular_step
             else:
+                # Otherwise, we have gone over the optimal angle, so we keep track of how many degrees we need to
+                # rotate back to make the robot face the optimal angle
                 snapto_angle_relative += angular_step
-            self.turn(degrees=angular_step, update_particles=True)
 
-        self.turn(degrees=-snapto_angle_relative, update_particles=True)
+            # Turn by some angular step to take the next measurement
+            self.turn(degrees=angular_step, update_particles=False)
 
+        # Reset the robot to face the optimal angle
+        self.turn(degrees=-snapto_angle_relative, update_particles=False)
+
+        # Update all the particles with the new "fixed" angle
+        noise = 0.1
+        new_angle = previous_angle - width_angle + min_angle
+        for particle in self.particles:
+            particle.theta = new_angle + random.gauss(1, noise)
 
 
 def block():

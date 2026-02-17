@@ -1,0 +1,5 @@
+Hello
+
+Please mark down any scary robot behaviour here, so we don't have to just remember that our robot is veering off to one side or another.
+
+The robot currently has more power fed to the left wheel than the right wheel to eliminate some bias.
