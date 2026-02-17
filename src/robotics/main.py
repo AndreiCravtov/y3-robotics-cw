@@ -279,7 +279,7 @@ class Robot:
 
         BP.set_sensor_type(FORWARD_SONAR_PORT, BP.SENSOR_TYPE.NXT_ULTRASONIC)
         BP.set_sensor_type(RIGHT_SONAR_PORT, BP.SENSOR_TYPE.NXT_ULTRASONIC)
-        time.sleep(3)
+        # time.sleep(3)
 
         BP.set_motor_limits(LEFT_WHEEL, LEFT_POWER_LIMIT, 250)
         BP.set_motor_limits(RIGHT_WHEEL, RIGHT_POWER_LIMIT, 250)
@@ -415,7 +415,7 @@ class Robot:
 
         self.forward(distance)
 
-        self.resample("double")
+        self.resample("single")
 
         return self.navigate_to_waypoint(x, y)
 
@@ -508,19 +508,19 @@ def real_world_test():
     robot = Robot()
     # robot.navigate_to_waypoint(84, 30)
     robot.navigate_to_waypoint(180, 30)
-    # robot.snap_to_wall()
+    robot.snap_to_wall()
     robot.navigate_to_waypoint(180, 54)
-    # robot.snap_to_wall()
+    robot.snap_to_wall()
     robot.navigate_to_waypoint(138, 54)
-    # robot.snap_to_wall()
+    robot.snap_to_wall()
     robot.navigate_to_waypoint(138, 168)
-    # robot.snap_to_wall()
+    robot.snap_to_wall()
     robot.navigate_to_waypoint(114, 168)
-    # robot.snap_to_wall()
+    robot.snap_to_wall()
     robot.navigate_to_waypoint(114, 84)
-    # robot.snap_to_wall()
+    robot.snap_to_wall()
     robot.navigate_to_waypoint(84, 84)
-    # robot.snap_to_wall()
+    robot.snap_to_wall()
     robot.navigate_to_waypoint(84, 30)
 
 def mock_test():
