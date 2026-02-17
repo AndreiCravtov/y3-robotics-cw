@@ -299,7 +299,7 @@ class Robot:
                 p.w /= total_weight
     
     def resample_particles(self):
-        self.normalize_particle_weights()
+        # Normalize weights before resampling!
         cumulative_weights = []
         cumulative_sum = 0
         for p in self.particles:
@@ -383,11 +383,19 @@ class Robot:
         )
 
         print("Turn complete. Moving forward...")
+        
         time.sleep(0.75)
 
         self.forward(distance)
 
-        time.sleep(0.5)
+        z = self.get_sonar_reading()
+        for particle in self.particles:
+            particle.calculate_likelihood(z)
+        
+        self.normalize_particle_weights()
+        self.resample_particles()
+
+
 
     def get_sonar_reading(self) -> float:
         return BP.get_sensor(SONAR_PORT)
@@ -411,10 +419,6 @@ def MCL():
 
 def waypointTest():
     robot = Robot()
-    # robot.navigate_to_waypoint(30, 0)
-    # robot.navigate_to_waypoint(30, 30)
-    # robot.navigate_to_waypoint(0, 30)
-    # robot.navigate_to_waypoint(0, 0)
     robot.navigate_to_waypoint(30, 30)
     robot.navigate_to_waypoint(30, 0)
     robot.navigate_to_waypoint(0, 30)
