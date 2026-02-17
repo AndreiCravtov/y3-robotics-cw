@@ -39,16 +39,20 @@ e = 0
 f = 0
 g = 0
 
+# POINTS = {
+#     "O": (0, 0),
+#     "A": (0, 168),
+#     "B": (84, 168),
+#     "C": (84, 126),
+#     "D": (84, 210),
+#     "E": (168, 210),
+#     "F": (168, 84),
+#     "G": (210, 84),
+#     "H": (210, 0),
+# }
 POINTS = {
-    "O": (0, 0),
-    "A": (0, 168),
-    "B": (84, 168),
-    "C": (84, 126),
-    "D": (84, 210),
-    "E": (168, 210),
-    "F": (168, 84),
-    "G": (210, 84),
-    "H": (210, 0),
+    "O": (61, 1000),
+    "A": (61, -1000)
 }
 
 
@@ -82,7 +86,7 @@ class Particle:
 
         pts = list(POINTS.values())
 
-        for (ax, ay), (bx, by) in zip(pts, pts[1:] + pts[:1], strict=True):
+        for (ax, ay), (bx, by) in zip(pts, pts[1:] + pts[:1]):
 
             den = ((by - ay) * math.cos(self.theta) - (bx - ax) * math.sin(self.theta))
             
@@ -269,6 +273,9 @@ class Robot:
 
         stop()
 
+        BP.set_sensor_type(SONAR_PORT, BP.SENSOR_TYPE.NXT_ULTRASONIC)
+        time.sleep(3)
+
         BP.set_motor_limits(LEFT_WHEEL, LEFT_POWER_LIMIT, 250)
         BP.set_motor_limits(RIGHT_WHEEL, RIGHT_POWER_LIMIT, 250)
 
@@ -437,4 +444,13 @@ def real_world_test():
     robot.navigate_to_waypoint(84, 84)
     robot.navigate_to_waypoint(84, 30)
 
-real_world_test()
+def mock_test():
+    robot = Robot()
+    robot.navigate_to_waypoint(10, 0)
+    robot.navigate_to_waypoint(0,0)
+    robot.navigate_to_waypoint(30, 0)
+    robot.navigate_to_waypoint(40, 10)
+
+def main():
+    # real_world_test()
+    mock_test()
