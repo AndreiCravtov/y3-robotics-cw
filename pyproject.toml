@@ -43,7 +43,7 @@ exclude = [
 stubPath = "typings"
 
 [[tool.basedpyright.executionEnvironments]]
-root = "src"
+root = "src/robotics"
 
 [[tool.basedpyright.executionEnvironments]]
 root = "."

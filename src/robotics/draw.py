@@ -1,32 +1,5 @@
-import time
-import random
 import math
-from typing import NamedTuple
-import weakref
-
-# Functions to generate some dummy particles data:
-t = 0
-
-
-def calcX():
-    return Cm(random.gauss(80, 3) + 70*(math.sin(t)))
-
-
-def calcY():
-    return Cm(random.gauss(70, 3) + 60*(math.sin(2*t)))
-
-
-def calcTheta():
-    return Rad(math.radians(random.randint(0, 360)))
-
-
-def calcW():
-    return random.random()
-
-
-# A Canvas class for drawing a map and particles:
-# 	- it takes care of a proper scaling and coordinate transformation between
-# the map frame of reference (in cm) and the display (in pixels)
+from typing import NamedTuple, Sequence
 
 
 class Cm(float):
@@ -82,7 +55,7 @@ class Canvas:
         y2 = self._y_cm_px(line.p2.y)
         print("drawLine:" + str((x1, y1, x2, y2)))
 
-    def drawParticles[T: Point | PointExt](self, particles: list[T]):
+    def drawParticles(self, particles: Sequence[Point | PointExt]):
         display = []
         for p in particles:
             match p:
@@ -104,11 +77,35 @@ class Canvas:
         return Px((self.margin + self.physical_size - y) * self.scale_cm_px)
 
 
+DEFAULT_WALLS = [
+    Line(Point(Cm(0), Cm(0)), Point(Cm(0), Cm(168))),        # a
+    Line(Point(Cm(0), Cm(168)), Point(Cm(84), Cm(168))),     # b
+    Line(Point(Cm(84), Cm(126)), Point(Cm(84), Cm(210))),    # c
+    Line(Point(Cm(84), Cm(210)), Point(Cm(168), Cm(210))),   # d
+    Line(Point(Cm(168), Cm(210)), Point(Cm(168), Cm(84))),   # e
+    Line(Point(Cm(168), Cm(84)), Point(Cm(210), Cm(84))),    # f
+    Line(Point(Cm(210), Cm(84)), Point(Cm(210), Cm(0))),     # g
+    Line(Point(Cm(210), Cm(0)), Point(Cm(0), Cm(0))),        # h
+]
+"""
+Definitions of walls:
+  a: O to A
+  b: A to B
+  c: C to D
+  d: D to E
+  e: E to F
+  f: F to G
+  g: G to H
+  h: H to O
+"""
+
+
 class Map:
     """A Map class containing walls"""
 
-    def __init__(self):
-        self.walls: list[Line] = []
+    def __init__(self, canvas: Canvas, walls: list[Line] = DEFAULT_WALLS):
+        self.canvas: Canvas = canvas
+        self.walls: list[Line] = walls
 
     def add_wall(self, wall: Line):
         self.walls.append(wall)
@@ -118,53 +115,22 @@ class Map:
 
     def draw(self):
         for wall in self.walls:
-            canvas.drawLine(wall)
+            self.canvas.drawLine(wall)
 
 
 class Particles:
     """Simple Particles set"""
 
-    def __init__(self, n: int = 10):
-        self.n = n
-        self.particles = []
+    def __init__(self, canvas: Canvas, particles: Sequence[Point | PointExt] = []):
+        self.canvas: Canvas = canvas
+        self.particles: Sequence[Point | PointExt] = particles
 
-    def update(self):
-        self.particles = [PointExt(Point(calcX(), calcY()), calcTheta(), calcW())
-                          for _ in range(self.n)]
+    def update_only(self, particles: Sequence[Point | PointExt]):
+        self.particles = particles
 
-    def draw(self):
-        canvas.drawParticles(self.particles)
+    def draw_only(self):
+        self.canvas.drawParticles(self.particles)
 
-
-canvas = Canvas()  # global canvas we are going to draw on
-
-mymap = Map()
-# Definitions of walls
-# a: O to A
-# b: A to B
-# c: C to D
-# d: D to E
-# e: E to F
-# f: F to G
-# g: G to H
-# h: H to O
-mymap.add_wall(Line(Point(Cm(0), Cm(0)), Point(Cm(0), Cm(168))))        # a
-mymap.add_wall(Line(Point(Cm(0), Cm(168)), Point(Cm(84), Cm(168))))     # b
-mymap.add_wall(Line(Point(Cm(84), Cm(126)), Point(Cm(84), Cm(210))))    # c
-mymap.add_wall(Line(Point(Cm(84), Cm(210)), Point(Cm(168), Cm(210))))   # d
-mymap.add_wall(Line(Point(Cm(168), Cm(210)), Point(Cm(168), Cm(84))))   # e
-mymap.add_wall(Line(Point(Cm(168), Cm(84)), Point(Cm(210), Cm(84))))    # f
-mymap.add_wall(Line(Point(Cm(210), Cm(84)), Point(Cm(210), Cm(0))))     # g
-mymap.add_wall(Line(Point(Cm(210), Cm(0)), Point(Cm(0), Cm(0))))        # h
-mymap.draw()
-
-particles = Particles()
-
-
-def main():
-    t = 0
-    while True:
-        particles.update()
-        particles.draw()
-        t += 0.05
-        time.sleep(0.05)
+    def update_and_draw(self, particles: Sequence[Point | PointExt]):
+        self.update_only(particles)
+        self.draw_only()
