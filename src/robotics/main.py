@@ -353,7 +353,7 @@ class Robot:
         """
         Commands the robot to move forward by this distance in centimeters
         """
-        distance = distance * (40 / 42)
+        # distance = distance * (40 / 41)
 
         if update_particles:
             for particle in self.particles:
@@ -617,8 +617,8 @@ def look_ahead():
 def main():
     # real_world_test()
     # mock_test()
-    read_world_test_odometry()
-    # robot = Robot()
-    # for x in range(4):
-    #     robot.forward(50.0)
-    #     robot.turn(degrees=90)
+    # read_world_test_odometry()
+    robot = Robot()
+    for x in range(4 * 4):
+        robot.forward(50.0)
+        robot.turn(degrees=90)
