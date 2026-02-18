@@ -19,13 +19,16 @@ class Point(NamedTuple):
     y: Cm
 
 
-class PointExt(NamedTuple):
+class Particle(NamedTuple):
     p: Point
     theta: Rad
     weight: float
     """
     In the range [0,1]
     """
+
+    def on_move_forward(self, distance: float):
+        pass
 
 
 class Line(NamedTuple):
@@ -55,11 +58,11 @@ class Canvas:
         y2 = self._y_cm_px(line.p2.y)
         print("drawLine:" + str((x1, y1, x2, y2)))
 
-    def drawParticles(self, particles: Sequence[Point | PointExt]):
+    def drawParticles(self, particles: Sequence[Point | Particle]):
         display = []
         for p in particles:
             match p:
-                case PointExt():
+                case Particle():
                     if p.weight < 0 or p.weight > 1:
                         raise ValueError(
                             f"The point weight must be in interval [0,1], found {p.weight}")
@@ -121,16 +124,16 @@ class Map:
 class Particles:
     """Simple Particles set"""
 
-    def __init__(self, canvas: Canvas, particles: Sequence[Point | PointExt] = []):
+    def __init__(self, canvas: Canvas, particles: Sequence[Point | Particle] = []):
         self.canvas: Canvas = canvas
-        self.particles: Sequence[Point | PointExt] = particles
+        self.particles: Sequence[Point | Particle] = particles
 
-    def update_only(self, particles: Sequence[Point | PointExt]):
+    def update_only(self, particles: Sequence[Point | Particle]):
         self.particles = particles
 
     def draw_only(self):
         self.canvas.drawParticles(self.particles)
 
-    def update_and_draw(self, particles: Sequence[Point | PointExt]):
+    def update_and_draw(self, particles: Sequence[Point | Particle]):
         self.update_only(particles)
         self.draw_only()

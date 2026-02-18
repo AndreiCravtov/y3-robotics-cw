@@ -5,8 +5,8 @@ from enum import Enum
 import time
 import random
 import math
-from .draw import Canvas, Cm, Map, Particles, Point, PointExt, Rad
-from dataclasses import dataclass
+from .draw import Canvas, Cm, Map, Particles, Point, Rad, Particle as Particle2
+from .constants import NUMBER_OF_PARTICLES, e, f, g
 
 BP = brickpi3.BrickPi3()
 
@@ -35,21 +35,6 @@ RADIUS_MODIFIER = (
     0.821  # represents the multiplier between actual radius and measured radius, previously 0.98
 )
 # RADIUS_MODIFIER = 0.95
-
-# MCL Constants
-NUMBER_OF_PARTICLES = 50
-# Variance of e,f,g for
-# e = 0.55 # forward sonar helps with reducing uncertainty with repeated measurements throughout the execution of a movement
-# f = 0.08 # sideward facing sonar helps with reducing uncertainty with repeated measurements throughout the execution of a movement
-# g = 0.02
-
-e = 0.1
-f = 0.04
-g = 0.05
-
-# e = 0
-# f = 0
-# g = 0
 
 # Arena
 POINTS = {
@@ -637,10 +622,10 @@ def main():
     for _ in range(10):
         time.sleep(0.5)
         particles.update_and_draw(
-            [PointExt(Point(Cm(random.gauss(80, 3) + 70*(math.sin(0))), Cm(random.gauss(70, 3) + 60*(math.sin(0)))), Rad(math.radians(random.randint(0, 360))), random.random())])
+            [Particle2(Point(Cm(random.gauss(80, 3) + 70*(math.sin(0))), Cm(random.gauss(70, 3) + 60*(math.sin(0)))), Rad(math.radians(random.randint(0, 360))), random.random())])
     # --------------------------------
 
-    # real_world_test()
+    real_world_test()
     # mock_test()
     # read_world_test_odometry()
     # robot = Robot()
