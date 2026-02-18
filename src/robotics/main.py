@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 import math
 import random
 import time
@@ -31,21 +33,22 @@ WHEEL_SEPARATION = 16.0
 # Please calibrate these before using them using the appropriate calibration functions
 MAX_DPS = 150.0  # maximum degrees per second
 RADIUS_MODIFIER = (
-    0.825  # represents the multiplier between actual radius and measured radius, previously 0.98
+    0.826  # represents the multiplier between actual radius and measured radius, previously 0.98
 )
 # RADIUS_MODIFIER = 0.95
 
 # MCL Constants
 NUMBER_OF_PARTICLES = 500
 # Variance of e,f,g for
-e = 0.40 # forward sonar helps with reducing uncertainty with repeated measurements throughout the execution of a movement
-f = 0.03 # sideward facing sonar helps with reducing uncertainty with repeated measurements throughout the execution of a movement
-g = 0.02
+e = 0.45 # forward sonar helps with reducing uncertainty with repeated measurements throughout the execution of a movement
+f = 0.05 # sideward facing sonar helps with reducing uncertainty with repeated measurements throughout the execution of a movement
+g = 0.0
 
 # e = 0
 # f = 0
 # g = 0
 
+# Arena
 POINTS = {
     "O": (0, 0),
     "A": (0, 168),
@@ -83,8 +86,8 @@ class Particle:
         return f"({self.x + 100}, {self.y + 100}, {self.theta}, {self.w})"
 
     def calculate_likelihood(self, sonar_reading: float, sonar_direction : str = "forward"):
-        assert sonar_direction in ["forward", "right"]
-        sonar_bearing = self.theta if sonar_direction == "forward" else self.theta + rad(-90.0)
+        assert sonar_direction in ["forward", "left"]
+        sonar_bearing = self.theta if sonar_direction == "forward" else self.theta + rad(90.0)
         c = 0.001
         sigma = 2.0 # was 1.0, but suggested to be 2-3cm on spec
         closest_dist = float("inf")
@@ -115,7 +118,8 @@ class Particle:
                 closest_dist = min(closest_dist, dist)
 
         if closest_dist == float("inf"):
-            print("Something went wrong with calculating likelihood, no walls detected:" + self.__str__())
+            # print("Something went wrong with calculating likelihood, no walls detected:" + self.__str__())
+            pass
 
         self.w = math.exp(-((sonar_reading - closest_dist) ** 2) / (2 * sigma**2)) + c
 
@@ -273,7 +277,9 @@ def stop():
 
 
 class Robot:
-    def __init__(self):
+    def __init__(self, starting_coordinates : Tuple[int, int] = STARTING_COORDINATE, sensor_mode : str = "forward_only"):
+        assert sensor_mode in ["forward_only", "all_sensors"]
+        self.sensor_mode = sensor_mode
 
         stop()
 
@@ -284,11 +290,11 @@ class Robot:
         BP.set_motor_limits(LEFT_WHEEL, LEFT_POWER_LIMIT, 250)
         BP.set_motor_limits(RIGHT_WHEEL, RIGHT_POWER_LIMIT, 250)
 
-        BP.set_motor_position_kp(LEFT_WHEEL, 55)
-        BP.set_motor_position_kp(RIGHT_WHEEL, 55)
+        BP.set_motor_position_kp(LEFT_WHEEL, 25)
+        BP.set_motor_position_kp(RIGHT_WHEEL, 25)
 
         self.particles = [
-            Particle(STARTING_COORDINATE[0], STARTING_COORDINATE[1], 0, 1 / NUMBER_OF_PARTICLES) for _ in range(NUMBER_OF_PARTICLES)
+            Particle(starting_coordinates[0], starting_coordinates[1], 0, 1 / NUMBER_OF_PARTICLES) for _ in range(NUMBER_OF_PARTICLES)
         ]
 
         print("Robot initialized successfully")
@@ -343,7 +349,7 @@ class Robot:
         """
         Commands the robot to move forward by this distance in centimeters
         """
-        distance = distance * (40 / 44)
+        distance = distance * (40 / 45)
 
         if update_particles:
             for particle in self.particles:
@@ -354,12 +360,12 @@ class Robot:
                 WheelMovement(
                     LEFT_WHEEL,
                     distance=distance,
-                    speed=dps_to_speed(reduction_factor=0.507),
+                    speed=dps_to_speed(reduction_factor=0.707),
                 ),
                 WheelMovement(
                     RIGHT_WHEEL,
                     distance=distance,
-                    speed=dps_to_speed(reduction_factor=0.5),
+                    speed=dps_to_speed(reduction_factor=0.7),
                 ),
             ]
         )
@@ -384,13 +390,13 @@ class Robot:
         BP.set_motor_position(forward_wheel, anglesForMovement)
         BP.set_motor_position(backward_wheel, -anglesForMovement)
 
-        print("Before sleep")
+        # print("Before sleep")
 
         time.sleep(1.4 * (abs(anglesForMovement) / MAX_DPS))
 
-        print("After sleep")
+        # print("After sleep")
 
-    def navigate_to_waypoint(self, x: float, y: float, step_size : float = 10.0, verbose : bool = True):
+    def navigate_to_waypoint(self, x: float, y: float, step_size : float = 15.0, verbose : bool = True):
         """"
         Navigates to the waypoint in step_size sprints, with MCL at each sprint's end
         """
@@ -422,7 +428,7 @@ class Robot:
         self.forward(distance)
 
         # MCL localisation using sonar measurements, and resamples the cloud of particles
-        self.resample("single")
+        self.resample(self.sensor_mode)
 
         # Recursively call the function without verbose if we have yet to reach our waypoint, which will resample
         # our location from the newly repopulated cloud
@@ -491,7 +497,7 @@ class Robot:
         self.turn(degrees=-width_angle, update_particles=False)
 
         # Depending on which sonar we are "snapping to the wall", we use a different sensor reading source
-        get_sonar_reading = (lambda : self.get_right_sensor_reading()) if sonar == "forward" else (lambda : self.get_right_sensor_reading())
+        get_sonar_reading = (lambda : self.get_forward_sonar_reading()) if sonar == "forward" else (lambda : self.get_right_sensor_reading())
 
         # Perform the scan, which takes 10 measurements spread over the cone described by the width angle
         snapto_angle_relative = 0
@@ -501,6 +507,7 @@ class Robot:
         for angle in range(int(width_angle * 2 / angular_step)):
             sonar_reading = get_sonar_reading()
             if sonar_reading < min_sonar_reading:
+                print("New sonar reading lower than previous readings")
                 # New sonar reading is lower than our previous minimum sonar reading
                 min_sonar_reading = sonar_reading
                 snapto_angle_relative = 0
@@ -508,15 +515,16 @@ class Robot:
             else:
                 # Otherwise, we have gone over the optimal angle, so we keep track of how many degrees we need to
                 # rotate back to make the robot face the optimal angle
+                print("Incrementing snapto_angle_relative")
                 snapto_angle_relative += angular_step
 
             # Turn by some angular step to take the next measurement
             self.turn(degrees=angular_step, update_particles=False)
 
         # Reset the robot to face the optimal angle
-        self.turn(degrees=-snapto_angle_relative, update_particles=False)
+        self.turn(degrees=-snapto_angle_relative * (0.75), update_particles=False)
 
-        # Update all the particles with the new "fixed" angle
+        # Update all the particles with the new "fixed" angle, removing the previous angle noise
         noise = 0.1
         new_angle = previous_angle - width_angle + min_angle
         for particle in self.particles:
@@ -548,33 +556,41 @@ def waypointTest():
 
 
 def real_world_test():
-    robot = Robot()
+    robot = Robot(sensor_mode="forward_only")
     # robot.navigate_to_waypoint(84, 30)
     robot.navigate_to_waypoint(180, 30)
-    # robot.snap_to_wall()
     robot.navigate_to_waypoint(180, 54)
-    # robot.snap_to_wall()
     robot.navigate_to_waypoint(138, 54)
-    # robot.snap_to_wall()
     robot.navigate_to_waypoint(138, 168)
-    # robot.snap_to_wall()
     robot.navigate_to_waypoint(114, 168)
-    # robot.snap_to_wall()
     robot.navigate_to_waypoint(114, 84)
-    # robot.snap_to_wall()
     robot.navigate_to_waypoint(84, 84)
-    # robot.snap_to_wall()
     robot.navigate_to_waypoint(84, 30)
 
 def mock_test():
-    robot = Robot()
-    robot.navigate_to_waypoint(10, 0)
+    # Test wall points, 1 meter away
+    global POINTS
+
+    POINTS = {
+        "O": (100, -1000),
+        "A": (100, 1000),
+        "B": (-50, 1000),
+        "C": (-50, -1000),
+    }
+
+    robot = Robot(starting_coordinates=(0,0))
+    robot.navigate_to_waypoint(50, 0)
     robot.navigate_to_waypoint(0,0)
     robot.navigate_to_waypoint(30, 0)
-    robot.navigate_to_waypoint(40, 10)
+    robot.navigate_to_waypoint(-10, 0)
+    robot.navigate_to_waypoint(50, 0)
+    robot.navigate_to_waypoint(0, 0)
 
 def main():
     real_world_test()
     # mock_test()
-    # robot = Robot()
-    # robot.snap_to_wall()
+    # robot = Robot(starting_coordinates=(0,0))
+    # while True:
+    #     print(robot.get_forward_sonar_reading())
+    #     time.sleep(0.3)
+    # robot.turn(180, update_particles=False)
