@@ -33,7 +33,7 @@ WHEEL_SEPARATION = 16.0
 # Please calibrate these before using them using the appropriate calibration functions
 MAX_DPS = 150.0  # maximum degrees per second
 RADIUS_MODIFIER = (
-    0.826  # represents the multiplier between actual radius and measured radius, previously 0.98
+    0.821  # represents the multiplier between actual radius and measured radius, previously 0.98
 )
 # RADIUS_MODIFIER = 0.95
 
@@ -294,8 +294,8 @@ class Robot:
         BP.set_motor_limits(LEFT_WHEEL, LEFT_POWER_LIMIT, 250)
         BP.set_motor_limits(RIGHT_WHEEL, RIGHT_POWER_LIMIT, 250)
 
-        BP.set_motor_position_kp(LEFT_WHEEL, 25)
-        BP.set_motor_position_kp(RIGHT_WHEEL, 25)
+        BP.set_motor_position_kp(LEFT_WHEEL, 55)
+        BP.set_motor_position_kp(RIGHT_WHEEL, 55)
 
         self.particles = [
             Particle(starting_coordinates[0], starting_coordinates[1], 0, 1 / NUMBER_OF_PARTICLES) for _ in range(NUMBER_OF_PARTICLES)
@@ -364,7 +364,7 @@ class Robot:
                 WheelMovement(
                     LEFT_WHEEL,
                     distance=distance,
-                    speed=dps_to_speed(reduction_factor=0.72),
+                    speed=dps_to_speed(reduction_factor=0.75),
                 ),
                 WheelMovement(
                     RIGHT_WHEEL,
@@ -571,6 +571,24 @@ def real_world_test():
     robot.navigate_to_waypoint(84, 84)
     robot.navigate_to_waypoint(84, 30)
 
+def read_world_test_odometry():
+    robot = Robot()
+    robot.forward(96) # -> 180, 30
+    robot.turn(90)
+    robot.forward(24) # -> 180, 54
+    robot.turn(90)
+    robot.forward(42) # -> 138, 54
+    robot.turn(-90)
+    robot.forward(114) # -> 138, 168
+    robot.turn(90)
+    robot.forward(24) # -> 114, 168
+    robot.turn(90)
+    robot.forward(84) # -> 114, 84
+    robot.turn(-90)
+    robot.forward(30) # -> 84, 84
+    robot.turn(90)
+    robot.forward(54) # to origin
+
 def mock_test():
     # Test wall points, 1 meter away
     global POINTS
@@ -597,5 +615,10 @@ def look_ahead():
         time.sleep(0.3)
 
 def main():
-    real_world_test()
+    # real_world_test()
     # mock_test()
+    read_world_test_odometry()
+    # robot = Robot()
+    # for x in range(4):
+    #     robot.forward(50.0)
+    #     robot.turn(degrees=90)
