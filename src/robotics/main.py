@@ -38,11 +38,15 @@ RADIUS_MODIFIER = (
 # RADIUS_MODIFIER = 0.95
 
 # MCL Constants
-NUMBER_OF_PARTICLES = 500
+NUMBER_OF_PARTICLES = 50
 # Variance of e,f,g for
-e = 0.45 # forward sonar helps with reducing uncertainty with repeated measurements throughout the execution of a movement
-f = 0.05 # sideward facing sonar helps with reducing uncertainty with repeated measurements throughout the execution of a movement
-g = 0.0
+# e = 0.55 # forward sonar helps with reducing uncertainty with repeated measurements throughout the execution of a movement
+# f = 0.08 # sideward facing sonar helps with reducing uncertainty with repeated measurements throughout the execution of a movement
+# g = 0.02
+
+e = 0.1
+f = 0.04
+g = 0.05
 
 # e = 0
 # f = 0
@@ -89,7 +93,7 @@ class Particle:
         assert sonar_direction in ["forward", "left"]
         sonar_bearing = self.theta if sonar_direction == "forward" else self.theta + rad(90.0)
         c = 0.001
-        sigma = 2.0 # was 1.0, but suggested to be 2-3cm on spec
+        sigma = 0.5 # was 1.0, but suggested to be 2-3cm on spec
         closest_dist = float("inf")
 
         pts = list(POINTS.values())
@@ -349,7 +353,7 @@ class Robot:
         """
         Commands the robot to move forward by this distance in centimeters
         """
-        distance = distance * (40 / 45)
+        distance = distance * (40 / 42)
 
         if update_particles:
             for particle in self.particles:
@@ -360,7 +364,7 @@ class Robot:
                 WheelMovement(
                     LEFT_WHEEL,
                     distance=distance,
-                    speed=dps_to_speed(reduction_factor=0.707),
+                    speed=dps_to_speed(reduction_factor=0.72),
                 ),
                 WheelMovement(
                     RIGHT_WHEEL,
@@ -392,7 +396,7 @@ class Robot:
 
         # print("Before sleep")
 
-        time.sleep(1.4 * (abs(anglesForMovement) / MAX_DPS))
+        time.sleep(1.2 * (abs(anglesForMovement) / MAX_DPS))
 
         # print("After sleep")
 
@@ -581,16 +585,17 @@ def mock_test():
     robot = Robot(starting_coordinates=(0,0))
     robot.navigate_to_waypoint(50, 0)
     robot.navigate_to_waypoint(0,0)
-    robot.navigate_to_waypoint(30, 0)
-    robot.navigate_to_waypoint(-10, 0)
-    robot.navigate_to_waypoint(50, 0)
-    robot.navigate_to_waypoint(0, 0)
+    # robot.navigate_to_waypoint(30, 0)
+    # robot.navigate_to_waypoint(-10, 0)
+    # robot.navigate_to_waypoint(50, 0)
+    # robot.navigate_to_waypoint(0, 0)
+
+def look_ahead():
+    robot = Robot(starting_coordinates=(0,0))
+    while True:
+        print(robot.get_forward_sonar_reading())
+        time.sleep(0.3)
 
 def main():
     real_world_test()
     # mock_test()
-    # robot = Robot(starting_coordinates=(0,0))
-    # while True:
-    #     print(robot.get_forward_sonar_reading())
-    #     time.sleep(0.3)
-    # robot.turn(180, update_particles=False)
