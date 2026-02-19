@@ -1,39 +1,11 @@
+"""
+This module contains logic for a drawing abstraction in general,
+as well as specific abstractions for drawing maps and Monte-Carlo Localization particle-clouds.
+"""
+
 import math
-from typing import NamedTuple, Sequence
-
-
-class Cm(float):
-    pass
-
-
-class Px(float):
-    pass
-
-
-class Rad(float):
-    pass
-
-
-class Point(NamedTuple):
-    x: Cm
-    y: Cm
-
-
-class Particle(NamedTuple):
-    p: Point
-    theta: Rad
-    weight: float
-    """
-    In the range [0,1]
-    """
-
-    def on_move_forward(self, distance: float):
-        pass
-
-
-class Line(NamedTuple):
-    p1: Point
-    p2: Point
+from typing import Sequence
+from .datatypes import Cm, Line, Particle, Point, Pr, Px, Rad
 
 
 class Canvas:
@@ -51,14 +23,14 @@ class Canvas:
         self.scale_cm_px: float = canvas_size / \
             (physical_size + 2 * self.margin)
 
-    def drawLine(self, line: Line):
+    def draw_line(self, line: Line):
         x1 = self._x_cm_px(line.p1.x)
         y1 = self._y_cm_px(line.p1.y)
         x2 = self._x_cm_px(line.p2.x)
         y2 = self._y_cm_px(line.p2.y)
         print("drawLine:" + str((x1, y1, x2, y2)))
 
-    def drawParticles(self, particles: Sequence[Point | Particle]):
+    def draw_particles(self, particles: Sequence[Point | Particle]):
         display = []
         for p in particles:
             match p:
@@ -80,33 +52,10 @@ class Canvas:
         return Px((self.margin + self.physical_size - y) * self.scale_cm_px)
 
 
-DEFAULT_WALLS = [
-    Line(Point(Cm(0), Cm(0)), Point(Cm(0), Cm(168))),        # a
-    Line(Point(Cm(0), Cm(168)), Point(Cm(84), Cm(168))),     # b
-    Line(Point(Cm(84), Cm(126)), Point(Cm(84), Cm(210))),    # c
-    Line(Point(Cm(84), Cm(210)), Point(Cm(168), Cm(210))),   # d
-    Line(Point(Cm(168), Cm(210)), Point(Cm(168), Cm(84))),   # e
-    Line(Point(Cm(168), Cm(84)), Point(Cm(210), Cm(84))),    # f
-    Line(Point(Cm(210), Cm(84)), Point(Cm(210), Cm(0))),     # g
-    Line(Point(Cm(210), Cm(0)), Point(Cm(0), Cm(0))),        # h
-]
-"""
-Definitions of walls:
-  a: O to A
-  b: A to B
-  c: C to D
-  d: D to E
-  e: E to F
-  f: F to G
-  g: G to H
-  h: H to O
-"""
-
-
 class Map:
     """A Map class containing walls"""
 
-    def __init__(self, canvas: Canvas, walls: list[Line] = DEFAULT_WALLS):
+    def __init__(self, canvas: Canvas, walls: list[Line]):
         self.canvas: Canvas = canvas
         self.walls: list[Line] = walls
 
@@ -118,22 +67,27 @@ class Map:
 
     def draw(self):
         for wall in self.walls:
-            self.canvas.drawLine(wall)
+            self.canvas.draw_line(wall)
 
 
 class Particles:
-    """Simple Particles set"""
+    """Set of particles complete with Monte-Carlo Localization mathematics"""
 
-    def __init__(self, canvas: Canvas, particles: Sequence[Point | Particle] = []):
+    def __init__(self, canvas: Canvas, points: list[Point], starting_theta: Rad = Rad(0)):
         self.canvas: Canvas = canvas
-        self.particles: Sequence[Point | Particle] = particles
+        self._validate_and_set(points, starting_theta)
 
-    def update_only(self, particles: Sequence[Point | Particle]):
-        self.particles = particles
+    def _validate_and_set(self, points: list[Point], starting_theta: Rad):
+        # Ensure at least 1 point, then init
+        n = len(points)
+        if n == 0:
+            raise ValueError(f"Expected at least 1 particle, got {n!r}")
+        starting_weight = Pr(1 / len(points))
+        self.particles: list[Particle] = [
+            Particle(p, starting_theta, starting_weight) for p in points]
 
-    def draw_only(self):
-        self.canvas.drawParticles(self.particles)
+    def reset(self,  points: list[Point], starting_theta: Rad = Rad(0)):
+        self._validate_and_set(points, starting_theta)
 
-    def update_and_draw(self, particles: Sequence[Point | Particle]):
-        self.update_only(particles)
-        self.draw_only()
+    def draw(self):
+        self.canvas.draw_particles(self.particles)

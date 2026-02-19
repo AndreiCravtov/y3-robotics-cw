@@ -5,8 +5,9 @@ from enum import Enum
 import time
 import random
 import math
-from .draw import Canvas, Cm, Map, Particles, Point, Rad, Particle as Particle2
-from .constants import NUMBER_OF_PARTICLES, e, f, g
+from .datatypes import Cm, Point, Rad, Particle as Particle2
+from .draw import Canvas, Map, Particles
+from .constants import MAP_WALLS, NUMBER_OF_PARTICLES, e, f, g
 
 BP = brickpi3.BrickPi3()
 
@@ -615,16 +616,16 @@ def look_ahead():
 def main():
     # ---- Set up drawing objects ----
     canvas = Canvas()
-    map = Map(canvas)
+    map = Map(canvas, MAP_WALLS)
     map.draw()
-    particles = Particles(canvas)
+    particles = Particles(canvas, [Point(Cm(120), Cm(120))])
 
     for _ in range(10):
         time.sleep(0.5)
-        particles.update_and_draw(
-            [Particle2(Point(Cm(random.gauss(80, 3) + 70*(math.sin(0))), Cm(random.gauss(70, 3) + 60*(math.sin(0)))), Rad(math.radians(random.randint(0, 360))), random.random())])
+        particles.draw()
     # --------------------------------
 
+    print(normalize_angle(-1))
     real_world_test()
     # mock_test()
     # read_world_test_odometry()
