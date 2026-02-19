@@ -28,6 +28,14 @@ class Rad(float):
     def to_deg(self) -> "Deg":
         return Deg(math.degrees(self))
 
+    def normalize(self) -> Self:
+        """
+        Normalizes the angle to range [-π,π].
+        """
+
+        normalized = (self + math.pi) % (2 * math.pi) - math.pi
+        return self.__class__(normalized)
+
 
 class Deg(float):
     """Degree newtype"""

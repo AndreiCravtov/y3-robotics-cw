@@ -12,12 +12,36 @@ lint:
 fmt:
   nix fmt && uv run ruff format src
 
-# Sync files with remote on PI
+# Run a single rsync over SSH
 [group('Pi Devops')]
-watch-rsync IP=env('PI_IP') USER=env('RSYNC_USER'):
-  chmod 600 ./.rsync_passwd && watch -n 1 'rsync -az --delete --filter=":- .gitignore" --password-file="./.rsync_passwd" ./ pi@{{IP}}::prac-files/y3-robotics-cw-{{USER}}/'
+rsync IP=env('PI_IP') USER=env('RSYNC_USER'):
+  #!/usr/bin/env bash
+  set -euo pipefail
 
-# Sync files with remote on PI
+  mkdir -p pi_ssh
+  KEY="pi_ssh/id_ed25519"
+  chmod 600 "$KEY"
+
+  SSH_OPTS=(
+    -i "$KEY"
+    -o IdentitiesOnly=yes
+    -o StrictHostKeyChecking=no
+    -o UserKnownHostsFile=/dev/null
+    -o ControlMaster=auto
+    -o ControlPersist=5m
+    -o ControlPath=pi_ssh/cm-%C
+  )
+
+  rsync -a --delete --filter=":- .gitignore" \
+    -e "ssh ${SSH_OPTS[*]}" \
+    ./ "pi@{{IP}}:/home/pi/prac-files/y3-robotics-cw-{{USER}}/"
+
+# Watch the sync by repeatedly invoking the recipe above
+[group('Pi Devops')]
+watch-rsync IP=env('PI_IP') USER=env('RSYNC_USER') INTERVAL="1":
+  watch -n {{INTERVAL}} -- just rsync {{IP}} {{USER}}
+
+# Set the current PI address for this session
 [group('Pi Devops')]
 set-pi-ip IP:
   echo "export PI_IP={{IP}}" > .envrc.session && direnv reload
