@@ -5,7 +5,7 @@ A little bit like a "utils" for types.
 """
 
 import math
-from typing import NamedTuple, Self
+from typing import NamedTuple
 
 
 class Cm(float):
@@ -28,7 +28,7 @@ class Rad(float):
     def to_deg(self) -> "Deg":
         return Deg(math.degrees(self))
 
-    def normalize(self) -> Self:
+    def normalize(self):
         """
         Normalizes the angle to range [-π,π].
         """
@@ -53,7 +53,7 @@ class Pr(float):
 
     __slots__ = ()
 
-    def __new__(cls, value: float) -> Self:
+    def __new__(cls, value: float):
         v = float(value)
         if not (0.0 <= v <= 1.0):
             raise ValueError(f"Pr must be in [0, 1], got {v!r}")
@@ -85,5 +85,5 @@ class Particle(NamedTuple):
     weight: Pr
 
     @classmethod
-    def of(cls, x: Cm, y: Cm, theta: Rad, weight: Pr) -> Self:
+    def of(cls, x: Cm, y: Cm, theta: Rad, weight: Pr):
         return cls.__new__(cls, Point(x, y), theta, weight)

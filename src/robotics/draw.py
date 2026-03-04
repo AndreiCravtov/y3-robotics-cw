@@ -2,6 +2,7 @@
 This module contains logic for a drawing abstraction in general,
 as well as specific abstractions for drawing maps and Monte-Carlo Localization particle-clouds.
 """
+from __future__ import annotations
 
 import math
 from typing import Sequence
@@ -32,17 +33,17 @@ class Canvas:
 
     def draw_particles(self, particles: Sequence[Point | Particle]):
         display = []
-        for p in particles:
-            match p:
-                case Particle():
-                    if p.weight < 0 or p.weight > 1:
-                        raise ValueError(
-                            f"The point weight must be in interval [0,1], found {p.weight}")
-                    display.append(
-                        (self._x_cm_px(p.p.x), self._y_cm_px(p.p.y), math.degrees(p.theta), p.weight))
-                case Point():
-                    display.append(
-                        (self._x_cm_px(p.x), self._y_cm_px(p.y)))
+        # for p in particles:
+        #     match p:
+        #         case Particle():
+        #             if p.weight < 0 or p.weight > 1:
+        #                 raise ValueError(
+        #                     f"The point weight must be in interval [0,1], found {p.weight}")
+        #             display.append(
+        #                 (self._x_cm_px(p.p.x), self._y_cm_px(p.p.y), math.degrees(p.theta), p.weight))
+        #         case Point():
+        #             display.append(
+        #                 (self._x_cm_px(p.x), self._y_cm_px(p.y)))
         print("drawParticles:" + str(display))
 
     def _x_cm_px(self, x: Cm) -> Px:

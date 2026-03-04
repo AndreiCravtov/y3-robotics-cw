@@ -1,3 +1,5 @@
+import os
+
 import brickpi3
 from typing import Any, Callable, Iterable, List, TypeVar, Tuple
 from statistics import mean
@@ -5,9 +7,17 @@ from enum import Enum
 import time
 import random
 import math
+import numpy as np
+from numpy import ndarray
+import cv2
+from picamera2 import Picamera2
+
 from .datatypes import Cm, Point, Rad, Particle as Particle2
 from .draw import Canvas, Map, Particles
 from .constants import MAP_WALLS, NUMBER_OF_PARTICLES, e, f, g
+from .geometry import Pose2D, Vector
+from .homography import HtransformUVtoXY, HtransformXYtoUV
+from .vision import RelativeFrameObstacle, WorldFrameObstacle
 
 BP = brickpi3.BrickPi3()
 
@@ -49,7 +59,6 @@ POINTS = {
     "G": (210, 84),
     "H": (210, 0),
 }
-
 
 class Particle:
     def __init__(self, x: float, y: float, theta: float, weight: float):
@@ -235,7 +244,7 @@ def dps_to_speed(dps: float = MAX_DPS, reduction_factor: float = 0.7) -> float:
     return rad(dps) * actual_radius() * reduction_factor
 
 
-def motorMovementHandler(movements: List[WheelMovement]):
+def motorMovementHandler(movements: List[WheelMovement], verbose : bool = True):
     """
     Moves the wheels ahead by distance centimeters. Does not assume the calibration has been completed yet. Assumes
     vehicle is evenly distributed
@@ -245,18 +254,20 @@ def motorMovementHandler(movements: List[WheelMovement]):
     # Start each movement action
     forEach(movements, lambda mvmt: mvmt.begin())
 
-    print("\nBeginning all movement commands\n")
+    if verbose:
+        print("\nBeginning all movement commands\n")
 
     # Check every POLLING_INTERVAL the degrees moved by the motors, and subtract that from total degrees required to perform the action
     while not allF(movements, lambda mvmt: mvmt.is_complete()):
         time.sleep(POLLING_INTERVAL)
         forEach(movements, lambda mvmt: mvmt.update())
 
-    print("\nMovement complete\n")
     end_time = time.time()
     elapsed_time = end_time - start_time
 
-    print(f"Elapsed time: {elapsed_time}")
+    if verbose:
+        print("\nMovement complete\n")
+        print(f"Elapsed time: {elapsed_time}")
 
 
 def stop():
@@ -270,7 +281,13 @@ def stop():
 
 
 class Robot:
-    def __init__(self, starting_coordinates: Tuple[int, int] = STARTING_COORDINATE, sensor_mode: str = "forward_only"):
+    def __init__(self, camera, starting_coordinates: Tuple[int, int] = STARTING_COORDINATE, sensor_mode: str = "forward_only", safety_margin: float = 15.0):
+        """
+        Please pass a camera to the robot, for the robot to get front view images of.
+
+        Safety margin refers to how far the robot will attempt to stay away from an obstacle detected.
+        """
+
         assert sensor_mode in ["forward_only", "all_sensors"]
         self.sensor_mode = sensor_mode
 
@@ -289,6 +306,15 @@ class Robot:
         self.particles = [
             Particle(starting_coordinates[0], starting_coordinates[1], 0, 1 / NUMBER_OF_PARTICLES) for _ in range(NUMBER_OF_PARTICLES)
         ]
+
+        # Loading H and H_inv
+        self.H, self.H_inv = recalculate_H()
+
+        # Initialising the camera provided to us
+        self.camera = camera
+        self.camera.start()
+
+        self.safety_margin = safety_margin
 
         print("Robot initialized successfully")
 
@@ -340,7 +366,7 @@ class Robot:
         self.draw_walls()
         print("drawParticles:" + str(self.particles))
 
-    def forward(self, distance: float, update_particles: bool = True):
+    def forward(self, distance: float, update_particles: bool = True, verbose : bool = True):
         """
         Commands the robot to move forward by this distance in centimeters
         """
@@ -355,17 +381,17 @@ class Robot:
                 WheelMovement(
                     LEFT_WHEEL,
                     distance=distance,
-                    speed=dps_to_speed(reduction_factor=0.75),
+                    speed=dps_to_speed(reduction_factor=0.7),
                 ),
                 WheelMovement(
                     RIGHT_WHEEL,
                     distance=distance,
                     speed=dps_to_speed(reduction_factor=0.7),
                 ),
-            ]
+            ], verbose = verbose
         )
 
-        print(f"Moved {distance} forward")
+        # print(f"Moved {distance} forward")
 
         return
 
@@ -391,7 +417,7 @@ class Robot:
 
         # print("After sleep")
 
-    def navigate_to_waypoint(self, x: float, y: float, step_size: float = 15.0, verbose: bool = True):
+    def navigate_to_waypoint(self, x: float, y: float, step_size: float = 15.0, verbose: bool = True, use_MCL : bool = True):
         """"
         Navigates to the waypoint in step_size sprints, with MCL at each sprint's end
         """
@@ -422,10 +448,11 @@ class Robot:
         distance = min(step_size, distance)
 
         # Go forward by this distance (complete the sprint)
-        self.forward(distance)
+        self.forward(distance, verbose=verbose)
 
         # MCL localisation using sonar measurements, and resamples the cloud of particles
-        self.resample(self.sensor_mode)
+        if use_MCL:
+            self.resample(self.sensor_mode)
 
         # Recursively call the function without verbose if we have yet to reach our waypoint, which will resample
         # our location from the newly repopulated cloud
@@ -433,6 +460,9 @@ class Robot:
             return self.navigate_to_waypoint(x=x, y=y, step_size=step_size, verbose=False)
         else:
             return None
+
+    def navigate_to_position(self, pos: Pose2D, step_size: float = 15.0, verbose: bool = True, use_MCL : bool = True):
+        return self.navigate_to_waypoint(pos.x, pos.y, step_size, verbose=verbose, use_MCL=use_MCL)
 
     def get_forward_sonar_reading(self) -> float:
         while True:
@@ -521,7 +551,7 @@ class Robot:
 
         # Reset the robot to face the optimal angle
         self.turn(degrees=-snapto_angle_relative *
-                  (0.75), update_particles=False)
+                          0.75, update_particles=False)
 
         # Update all the particles with the new "fixed" angle, removing the previous angle noise
         noise = 0.1
@@ -529,13 +559,165 @@ class Robot:
         for particle in self.particles:
             particle.theta = new_angle + random.gauss(1, noise)
 
+    def identify_red(self) -> Tuple[List[Tuple[float, float]], List[RelativeFrameObstacle]]:
+        """
+        Identifies and returns a list of coke cans positions.
+        Returns a double of visual data, and a list of obstacles. The visual data can be shown by the visualise_dots
+        method, and the obstacles data are in relative coordinates, which need to be converted into world frame
+        coordinates before they can be used
+        """
+        img = self.camera.capture_array()
+
+        # Convert to HSV colour space
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+        # Apply colour thresholding: for red this is done in two steps
+        # lower mask (0-10)
+        lower_red = np.array([0, 50, 50])
+        upper_red = np.array([10, 255, 255])
+        mask0 = cv2.inRange(hsv, lower_red, upper_red)
+        # upper mask (170-180)
+        lower_red = np.array([170, 50, 50])
+        upper_red = np.array([180, 255, 255])
+        mask1 = cv2.inRange(hsv, lower_red, upper_red)
+        # join my masks
+        mask = mask0 + mask1
+        # This is a thresholded version of the image which you can display if
+        # you want to check what the colour thresholding does
+        result = cv2.bitwise_and(img, img, mask=mask)
+
+        # Calculate connected components: colour thresholded "blob" regions
+        output = cv2.connectedComponentsWithStats(mask, 4, cv2.CV_32F)
+        (numLabels, labels, stats, centroids) = output
+
+        phys_dots = []
+        visual_dots = []
+
+        # Find the properties of the detected blobs
+        for i in range(0, numLabels):
+            # i=0 is the background region so ignore it
+            if i != 0:
+                # Extract the connected component statistics and centroid
+                # Here you can get the limits of the blob if you need them
+                u = stats[i, cv2.CC_STAT_LEFT]
+                v = stats[i, cv2.CC_STAT_TOP]
+                w = stats[i, cv2.CC_STAT_WIDTH]
+                h = stats[i, cv2.CC_STAT_HEIGHT]
+                area = stats[i, cv2.CC_STAT_AREA]
+                (cu, cv) = centroids[i]
+                # Print out the properties of blobs above a certain size
+                if (area > 150):
+                    visual_dots.append((u + int(w/2), v + h))
+
+                    center = Pose2D.from_tuple2(HtransformUVtoXY(self.H_inv, u + int(w / 2), v + h))
+                    left_corner = Pose2D.from_tuple2(HtransformUVtoXY(self.H_inv, u, v + h))
+                    right_corner = Pose2D.from_tuple2(HtransformUVtoXY(self.H_inv, u + w, v + h))
+                    phys_dots.append(RelativeFrameObstacle(center, left_corner, right_corner))
+
+        return visual_dots, phys_dots
+
+    def visualise_dots(self, visual_dots: List[Tuple[float, float]], print_visual_coordinates : bool = False):
+        """
+        Visualises the supplied dots
+        """
+        img = self.camera.capture_array()
+        # Convert to HSV colour space
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        white = (255, 255, 255)
+        font = cv2.FONT_HERSHEY_SIMPLEX
+
+        for (x, y) in visual_dots:
+            x = int(x)
+            y = int(y)
+
+            # Draw a little circle to show each detected blob
+            img = cv2.circle(img, (x, y), 5, white, 3)
+            # Also print its coordinates on the image!
+            phys_x, phys_y = HtransformUVtoXY(self.H_inv, x, y)
+            pstring = "(" + str(int(phys_x)) + "," + str(int(phys_y)) + ")" if not print_visual_coordinates else "(" + str(x) + "," + str(y) + ")"
+            img = cv2.putText(img, pstring, (x + 8, y), font, 0.5, white, 1, cv2.LINE_AA)
+
+        cv2.imwrite("demo.jpg", img)
+        print("drawImg:" + "/home/pi/prac-files/demo.jpg")
+
+    def navigate_through(self, step_size = 15.0, verbose : bool = True):
+        """
+        Navigates the robot through an obstacle course sparsely filled with red obstacles that attempts to maximise x
+        displacement
+        """
+
+        """
+        Good morning.
+        The camera's min range is approximately 15cm, so anything under 15cm should refer to the sonar for accurate forward measurements. 
+        Ideally we should not approach that close to a coke can. 
+        """
+
+        runOngoing = True
+        while True:
+            position = Pose2D.from_tuple3(self.get_current_position())
+            _, physical_dots = self.identify_red()
+
+            # Filter dots that are too far (we should not consider them yet)
+            physical_dots : filter[RelativeFrameObstacle] = filter(lambda rf_obstacle: rf_obstacle.center.x <= 70.0, physical_dots)
+
+            # Convert to world frame coordinates
+            physical_dots : List[WorldFrameObstacle] = list(map(lambda rf_obstacle: rf_obstacle.to_world_frame(position), physical_dots))
+
+            # Obstacle that is furthest away in x
+            if len(physical_dots) > 0:
+                obstacle_obj : WorldFrameObstacle = min(physical_dots, key = lambda rf_obstacle : rf_obstacle.center.x)
+
+                # Navigation algorithm
+                obstacle = obstacle_obj.center
+
+                # Find the waypoint that is a safe distance away from the obstacle a beneficial direction.
+                toObstacle = position.to(obstacle)
+                angleTo = position.angle_to(toObstacle)
+                if angleTo < 0:
+                    # We need to rotate more to avoid the obstacle
+                    normal_vector = -Vector(-1/toObstacle.x, 1/toObstacle.y)
+                else:
+                    normal_vector = Vector(1/toObstacle.x, -1/toObstacle.y)
+                toWaypoint = toObstacle + normal_vector.scale_to(self.safety_margin + obstacle_obj.width * 1.3)
+                waypoint = position + toWaypoint
+
+                # Overshooting the waypoint so our dumptruck doesn't crash into the obstacle when we make the next movement
+                overshootWaypoint = waypoint + toObstacle.scale_to(self.safety_margin * 0.4)
+
+                # Visualising the waypoint that we are heading to next
+                waypoint_relative_coordinate : Pose2D = position.world_to_relative(waypoint)
+                obstacle_relative_coordinate : Pose2D = position.world_to_relative(obstacle)
+                u, v = HtransformXYtoUV(self.H, waypoint_relative_coordinate.x, waypoint_relative_coordinate.y)
+                u_o, v_o = HtransformXYtoUV(self.H, obstacle_relative_coordinate.x, obstacle_relative_coordinate.y)
+
+                # Reporting
+                if verbose:
+                    print(f"Vector to obstacle {toObstacle}, distance {int(toObstacle.magnitude())}")
+                    print(f"Vector to waypoint {toWaypoint}, angle {position.angle_to(toWaypoint)}")
+                    print(f"Distance separating obstacle and waypoint {round(waypoint.to(obstacle).magnitude(), 3)}")
+                    print(f"Current position {position}")
+                    print("=======================")
+                self.visualise_dots([(u, v), (u_o, v_o)], print_visual_coordinates = False)
+
+                if runOngoing:
+                    self.navigate_to_position(overshootWaypoint, step_size = 10000.0, verbose = False, use_MCL = False)
+            else:
+                # Continue going forward
+                if runOngoing:
+                    print("No obstacles found. Liberation!")
+                    runOngoing = False
+                self.visualise_dots([], print_visual_coordinates = False)
+
+            time.sleep(1.5)
+
 
 def block():
     input("Please reset robot and press enter to start experiment")
 
 
-def MCL():
-    robot = Robot()
+def MCL(camera):
+    robot = Robot(camera)
     for _ in range(4):
         for _ in range(4):
             robot.forward(10.0)
@@ -546,16 +728,16 @@ def MCL():
         time.sleep(0.5)
 
 
-def waypointTest():
-    robot = Robot()
+def waypointTest(camera):
+    robot = Robot(camera)
     robot.navigate_to_waypoint(30, 30)
     robot.navigate_to_waypoint(30, 0)
     robot.navigate_to_waypoint(0, 30)
     robot.navigate_to_waypoint(0, 0)
 
 
-def real_world_test():
-    robot = Robot(sensor_mode="forward_only")
+def real_world_test(camera):
+    robot = Robot(camera, sensor_mode="forward_only")
     # robot.navigate_to_waypoint(84, 30)
     robot.navigate_to_waypoint(180, 30)
     robot.navigate_to_waypoint(180, 54)
@@ -567,8 +749,8 @@ def real_world_test():
     robot.navigate_to_waypoint(84, 30)
 
 
-def read_world_test_odometry():
-    robot = Robot()
+def read_world_test_odometry(camera):
+    robot = Robot(camera)
     robot.forward(96)  # -> 180, 30
     robot.turn(90)
     robot.forward(24)  # -> 180, 54
@@ -586,7 +768,7 @@ def read_world_test_odometry():
     robot.forward(54)  # to origin
 
 
-def mock_test():
+def mock_test(camera):
     # Test wall points, 1 meter away
     global POINTS
 
@@ -597,7 +779,7 @@ def mock_test():
         "C": (-50, -1000),
     }
 
-    robot = Robot(starting_coordinates=(0, 0))
+    robot = Robot(camera, starting_coordinates=(0, 0))
     robot.navigate_to_waypoint(50, 0)
     robot.navigate_to_waypoint(0, 0)
     # robot.navigate_to_waypoint(30, 0)
@@ -606,30 +788,73 @@ def mock_test():
     # robot.navigate_to_waypoint(0, 0)
 
 
-def look_ahead():
-    robot = Robot(starting_coordinates=(0, 0))
+def look_ahead(camera):
+    robot = Robot(camera, starting_coordinates=(0, 0))
     while True:
         print(robot.get_forward_sonar_reading())
         time.sleep(0.3)
 
+def recalculate_H() -> tuple[ndarray, ndarray]:
+    # Homography for camera: CHANGE THESE NUMBERS: enter your own correspondences
+    # to calibrate the ground plane homography for your robot
+    # (x1, y1, u1, v1) = (20, 10, 102, 356)
+    # (x2, y2, u2, v2) = (20, -10, 536, 359)
+    # (x3, y3, u3, v3) = (40, 20, 69, 181)
+    # (x4, y4, u4, v4) = (40, -20, 584, 186)
+
+    (x1, y1, u1, v1) = (25, 10, 102, 356)
+    (x2, y2, u2, v2) = (25, -10, 536, 359)
+    (x3, y3, u3, v3) = (52, 20, 69, 181)
+    (x4, y4, u4, v4) = (52, -20, 584, 186)
+
+    # Form and solve linear system
+    A = np.array([[x1, y1, 1, 0, 0, 0, -u1 * x1, -u1 * y1],
+                  [0, 0, 0, x1, y1, 1, -v1 * x1, -v1 * y1],
+                  [x2, y2, 1, 0, 0, 0, -u2 * x2, -u2 * y2],
+                  [0, 0, 0, x2, y2, 1, -v2 * x2, -v2 * y2],
+                  [x3, y3, 1, 0, 0, 0, -u3 * x3, -u3 * y3],
+                  [0, 0, 0, x3, y3, 1, -v3 * x3, -v3 * y3],
+                  [x4, y4, 1, 0, 0, 0, -u4 * x4, -u4 * y4],
+                  [0, 0, 0, x4, y4, 1, -v4 * x4, -v4 * y4]])
+
+    b = np.array([u1, v1, u2, v2, u3, v3, u4, v4])
+    R, residuals, RANK, sing = np.linalg.lstsq(A, b, rcond=None)
+
+    # Build homography matrix
+    H = np.array([[R[0], R[1], R[2]],
+                  [R[3], R[4], R[5]],
+                  [R[6], R[7], 1]])
+
+    print("Homography")
+    print(H)
+
+    # Inverse homography
+    HInv = np.linalg.inv(H)
+
+    # Save the files so we don't need to recalculate
+    np.save("H", H)
+    np.save("HInv", HInv)
+
+    return H, HInv
+
 
 def main():
     # ---- Set up drawing objects ----
-    canvas = Canvas()
-    map = Map(canvas, MAP_WALLS)
-    map.draw()
-    particles = Particles(canvas, [Point(Cm(120), Cm(120))])
-
-    for _ in range(10):
-        time.sleep(0.5)
-        particles.draw()
+    # canvas = Canvas()
+    # map = Map(canvas, MAP_WALLS)
+    # map.draw()
+    # particles = Particles(canvas, [Point(Cm(120), Cm(120))])
+    #
+    # for _ in range(10):
+    #     time.sleep(0.5)
+    #     particles.draw()
     # --------------------------------
 
-    print(normalize_angle(-1))
-    real_world_test()
-    # mock_test()
-    # read_world_test_odometry()
-    # robot = Robot()
-    # for x in range(4 * 4):
-    #     robot.forward(50.0)
-    #     robot.turn(degrees=90)
+    camera = Picamera2()
+    try:
+        robot = Robot(starting_coordinates=(0, 0), camera = camera)
+        robot.navigate_through()
+    except KeyboardInterrupt:
+        BP.reset_all()
+        camera.stop()
+
