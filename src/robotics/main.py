@@ -366,7 +366,7 @@ class Robot:
         self.draw_walls()
         print("drawParticles:" + str(self.particles))
 
-    def forward(self, distance: float, update_particles: bool = True, verbose : bool = True):
+    def forward(self, distance: float, update_particles: bool = True, verbose : bool = False, power : float = 0.7):
         """
         Commands the robot to move forward by this distance in centimeters
         """
@@ -381,12 +381,12 @@ class Robot:
                 WheelMovement(
                     LEFT_WHEEL,
                     distance=distance,
-                    speed=dps_to_speed(reduction_factor=0.7),
+                    speed=dps_to_speed(reduction_factor=power),
                 ),
                 WheelMovement(
                     RIGHT_WHEEL,
                     distance=distance,
-                    speed=dps_to_speed(reduction_factor=0.7),
+                    speed=dps_to_speed(reduction_factor=power),
                 ),
             ], verbose = verbose
         )
@@ -417,7 +417,7 @@ class Robot:
 
         # print("After sleep")
 
-    def navigate_to_waypoint(self, x: float, y: float, step_size: float = 15.0, verbose: bool = True, use_MCL : bool = True):
+    def navigate_to_waypoint(self, x: float, y: float, step_size: float = 15.0, verbose: bool = True, use_MCL : bool = True, power : float = True):
         """"
         Navigates to the waypoint in step_size sprints, with MCL at each sprint's end
         """
@@ -448,7 +448,7 @@ class Robot:
         distance = min(step_size, distance)
 
         # Go forward by this distance (complete the sprint)
-        self.forward(distance, verbose=verbose)
+        self.forward(distance, verbose=verbose, power = power)
 
         # MCL localisation using sonar measurements, and resamples the cloud of particles
         if use_MCL:
@@ -461,8 +461,8 @@ class Robot:
         else:
             return None
 
-    def navigate_to_position(self, pos: Pose2D, step_size: float = 15.0, verbose: bool = True, use_MCL : bool = True):
-        return self.navigate_to_waypoint(pos.x, pos.y, step_size, verbose=verbose, use_MCL=use_MCL)
+    def navigate_to_position(self, pos: Pose2D, step_size: float = 15.0, verbose: bool = True, use_MCL : bool = True, power : float = 0.7):
+        return self.navigate_to_waypoint(pos.x, pos.y, step_size, verbose=verbose, use_MCL=use_MCL, power = power)
 
     def get_forward_sonar_reading(self) -> float:
         while True:
@@ -654,17 +654,18 @@ class Robot:
         """
 
         runOngoing = True
+        phase = 0
         while True:
             position = Pose2D.from_tuple3(self.get_current_position())
             _, physical_dots = self.identify_red()
 
             # Filter dots that are too far (we should not consider them yet)
-            physical_dots : filter[RelativeFrameObstacle] = filter(lambda rf_obstacle: rf_obstacle.center.x <= 70.0, physical_dots)
+            # physical_dots : filter[RelativeFrameObstacle] = filter(lambda rf_obstacle: rf_obstacle.center.x <= 70.0, physical_dots)
 
             # Convert to world frame coordinates
             physical_dots : List[WorldFrameObstacle] = list(map(lambda rf_obstacle: rf_obstacle.to_world_frame(position), physical_dots))
 
-            # Obstacle that is furthest away in x
+            # Obstacle that is closest to us
             if len(physical_dots) > 0:
                 obstacle_obj : WorldFrameObstacle = min(physical_dots, key = lambda rf_obstacle : rf_obstacle.center.x)
 
@@ -673,17 +674,25 @@ class Robot:
 
                 # Find the waypoint that is a safe distance away from the obstacle a beneficial direction.
                 toObstacle = position.to(obstacle)
-                angleTo = position.angle_to(toObstacle)
-                if angleTo < 0:
-                    # We need to rotate more to avoid the obstacle
-                    normal_vector = -Vector(-1/toObstacle.x, 1/toObstacle.y)
-                else:
-                    normal_vector = Vector(1/toObstacle.x, -1/toObstacle.y)
-                toWaypoint = toObstacle + normal_vector.scale_to(self.safety_margin + obstacle_obj.width * 1.3)
-                waypoint = position + toWaypoint
 
-                # Overshooting the waypoint so our dumptruck doesn't crash into the obstacle when we make the next movement
-                overshootWaypoint = waypoint + toObstacle.scale_to(self.safety_margin * 0.4)
+                # Kenzie Technique
+                d: float = toObstacle.magnitude()
+                r: float = self.safety_margin + (obstacle_obj.width * 1.2)
+                k: float = pow(r, 2) / pow(d, 2)
+                m: float = r * math.sqrt(pow(d, 2) - pow(r, 2)) / pow(d, 2)
+                waypoint1 = Pose2D(
+                    obstacle.x - (k * toObstacle.x) + (m * toObstacle.y),
+                    obstacle.y - (k * toObstacle.y) - (m * toObstacle.x))
+                waypoint2 = Pose2D(
+                    obstacle.x - (k * toObstacle.x) - (m * toObstacle.y),
+                    obstacle.y - (k * toObstacle.y) + (m * toObstacle.x))
+
+                # Choose which waypoint gets us further in x (representing less of a deviation from the optimal straight line path)
+                if waypoint1.x > waypoint2.x:
+                    waypoint = waypoint1
+                else:
+                    waypoint = waypoint2
+                toWaypoint = position.to(waypoint).scale_to(step_size)
 
                 # Visualising the waypoint that we are heading to next
                 waypoint_relative_coordinate : Pose2D = position.world_to_relative(waypoint)
@@ -701,12 +710,25 @@ class Robot:
                 self.visualise_dots([(u, v), (u_o, v_o)], print_visual_coordinates = False)
 
                 if runOngoing:
-                    self.navigate_to_position(overshootWaypoint, step_size = 10000.0, verbose = False, use_MCL = False)
+                    self.navigate_to_position(waypoint, step_size = 10000.0, verbose = False, use_MCL = False)
             else:
                 # Continue going forward
-                if runOngoing:
+                # If phase is zero, turn to (1, 0), and look again. If not again, then just go forward
+                if phase == 0:
+                    print("Facing end of track and resetting orientation")
+                    self.turn(-angle(position.theta))
+                    phase = 1
+                else:
                     print("No obstacles found. Liberation!")
-                    runOngoing = False
+                    self.forward(step_size, power = 1.0, verbose = False)
+                    phase = 0
+
+                if position.x > 500:
+                    # Done through the course
+                    print("We're done!")
+                    break
+
+                print("=======================")
                 self.visualise_dots([], print_visual_coordinates = False)
 
             time.sleep(1.5)
