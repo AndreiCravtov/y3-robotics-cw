@@ -641,7 +641,7 @@ class Robot:
         cv2.imwrite("demo.jpg", img)
         print("drawImg:" + "/home/pi/prac-files/demo.jpg")
 
-    def navigate_through(self, step_size = 15.0, verbose : bool = True):
+    def navigate_through(self, step_size = 20.0, verbose : bool = True):
         """
         Navigates the robot through an obstacle course sparsely filled with red obstacles that attempts to maximise x
         displacement
@@ -676,22 +676,29 @@ class Robot:
                 toObstacle = position.to(obstacle)
 
                 # Kenzie Technique
-                d: float = toObstacle.magnitude()
-                r: float = self.safety_margin + (obstacle_obj.width * 1.2)
-                k: float = pow(r, 2) / pow(d, 2)
-                m: float = r * math.sqrt(pow(d, 2) - pow(r, 2)) / pow(d, 2)
-                waypoint1 = Pose2D(
-                    obstacle.x - (k * toObstacle.x) + (m * toObstacle.y),
-                    obstacle.y - (k * toObstacle.y) - (m * toObstacle.x))
-                waypoint2 = Pose2D(
-                    obstacle.x - (k * toObstacle.x) - (m * toObstacle.y),
-                    obstacle.y - (k * toObstacle.y) + (m * toObstacle.x))
+                try:
+                    d: float = toObstacle.magnitude()
+                    r: float = self.safety_margin + (obstacle_obj.width * 1.2)
+                    k: float = pow(r, 2) / pow(d, 2)
+                    m: float = r * math.sqrt(pow(d, 2) - pow(r, 2)) / pow(d, 2)
+                    waypoint1 = Pose2D(
+                        obstacle.x - (k * toObstacle.x) + (m * toObstacle.y),
+                        obstacle.y - (k * toObstacle.y) - (m * toObstacle.x))
+                    waypoint2 = Pose2D(
+                        obstacle.x - (k * toObstacle.x) - (m * toObstacle.y),
+                        obstacle.y - (k * toObstacle.y) + (m * toObstacle.x))
 
-                # Choose which waypoint gets us further in x (representing less of a deviation from the optimal straight line path)
-                if waypoint1.x > waypoint2.x:
-                    waypoint = waypoint1
-                else:
-                    waypoint = waypoint2
+                    # Choose which waypoint gets us further in x (representing less of a deviation from the optimal straight line path)
+                    if waypoint1.x > waypoint2.x:
+                        waypoint = waypoint1
+                    else:
+                        waypoint = waypoint2
+                except ValueError:
+                    # Back and face north
+                    self.forward(-10.0)
+                    self.turn(-angle(position.theta))
+                    continue
+
                 toWaypoint = position.to(waypoint).scale_to(step_size)
 
                 # Visualising the waypoint that we are heading to next
